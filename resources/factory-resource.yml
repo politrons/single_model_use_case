@@ -94,16 +94,8 @@ resources:
               - "${var.workspace_name}/${bundle.name}/${bundle.target}/files/configs/split_config.yml"
               - "--metrics_table"
               - "${var.catalog_name}.${bundle.name}.${model_name}_metrics"
-      schedule:
-        quartz_cron_expression: ${cron_job}
-        timezone_id: UTC
-        pause_status: ${pause_status}
-      email_notifications:
-        on_failure:
-          - ${var.email_group}
-        no_alert_for_skipped_runs: true
-      tags:
-        project_name: ${var.db_project_name}
-        project_created_by: ${var.project_created_by}
-        business_unit: ${var.business_unit}
+#      schedule:
+#        quartz_cron_expression: ${cron_job}
+#        timezone_id: UTC
+#        pause_status: ${pause_status}
       <<: *permissions

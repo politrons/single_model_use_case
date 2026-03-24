@@ -8,45 +8,6 @@ variables:
   workspace_name:
     description: Workspace name for the user.
     default: /Workspace/Users/${workspace.current_user.userName}/.bundle
-  warehouse_id:
-    description: Warehouse id of DBX workspace
-  catalog_name:
-    description: The catalog name to save the trained model
-  policy_id:
-    description: The policy_id of the Job cluster
-  job_cluster_env:
-    description: The env of the Job cluster
-  dev_workspace_host:
-    default: ${databricks_dev_host}
-  instance_pool_id:
-    default: ${instance_pool_id}
-  load_dbx_opco:
-    default: ${load_dbx_opco}
-  service_credential:
-    default: ${service_credential}
-  service_credential_vault:
-    default: ${service_credential_vault}
-  service_credential_client_id:
-    default: ${service_credential_client_id}
-  service_credential_client_secret:
-    default: ${service_credential_client_secret}
-  email_group:
-    description: Email of the group owner of this project
-  model_project:
-    default: ${model_project}
-  feature_store_project:
-    default: ${feature_store_project}
-  feature_store_cron_schedule:
-    description: CRON Quartz Expression
-    default: ${feature_store_cron_schedule}
-  db_project_name:
-    default: ${project_name}
-  project_created_by:
-    description: Name of the person who initiated the process in Scaffold Runner
-    default: ${project_created_by}
-  business_unit:
-    description: Business Unit (used for tags)
-    default: ${business_unit}
 
 include:
   - ./resources/factory-resource.yml
@@ -58,31 +19,15 @@ targets:
     default: true
     variables:
       catalog_name: ${catalog_dev_name}
-      policy_id: ${databricks_dev_policy_id}
-      job_cluster_env: ${job_cluster_dev_env}
-      warehouse_id: ${databricks_dev_warehouse_id}
-      email_group: ${email_group}
-      feature_store_cron_schedule: ${feature_store_cron_schedule}
     workspace:
       host: ${databricks_dev_host}
   staging:
     variables:
       catalog_name: ${catalog_staging_name}
-      policy_id: ${databricks_staging_policy_id}
-      job_cluster_env: ${job_cluster_staging_env}
-      warehouse_id: ${databricks_staging_warehouse_id}
-      email_group: ${email_group}
-      feature_store_cron_schedule: ${feature_store_cron_schedule}
     workspace:
       host: ${databricks_staging_host}
   prod:
     variables:
       catalog_name: ${catalog_prod_name}
-      policy_id: ${databricks_prod_policy_id}
-      job_cluster_env: ${job_cluster_prod_env}
-      warehouse_id: ${databricks_prod_warehouse_id}
-      email_group: ${email_group}
-      feature_store_cron_schedule: ${feature_store_cron_schedule}
     workspace:
       host: ${databricks_prod_host}
-
