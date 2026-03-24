@@ -8,7 +8,8 @@ variables:
   workspace_name:
     description: Workspace name for the user.
     default: /Workspace/Users/${workspace.current_user.userName}/.bundle
-
+  catalog_name:
+    description: The catalog name to save the trained model
 include:
   - ./resources/factory-model-use-case-1-resource.yml
 
