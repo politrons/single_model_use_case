@@ -1,0 +1,152 @@
+common_permissions: &permissions
+  permissions:
+    - level: CAN_MANAGE
+      group_name: users
+
+resources:
+  jobs:
+    model_use_case_1-factory-job:
+      name: ${bundle.target}-${bundle.name}-model_use_case_1-factory-job
+      job_clusters:
+        - job_cluster_key: Job_cluster
+          new_cluster:
+            spark_version: 16.4.x-scala2.12
+            # Required by your cluster policy when using pools
+            instance_pool_id: ${var.instance_pool_id}
+            driver_instance_pool_id: ${var.instance_pool_id}
+            policy_id: ${var.policy_id}
+            # Must satisfy policy constraints
+            custom_tags:
+              local-dbx-OpsTeam: CDAO ML Engineering
+              local-dbx-opco: ${var.load_dbx_opco}
+              local-dbx-env: ${var.job_cluster_env}
+              local-dbx-domain: CDAO
+            data_security_mode: SINGLE_USER
+            runtime_engine: STANDARD
+            kind: CLASSIC_PREVIEW
+            use_ml_runtime: true
+            is_single_node: false
+            autoscale:
+              min_workers: 1
+              max_workers: 2
+
+      tasks:
+        - task_key: Training
+          job_cluster_key: Job_cluster
+          libraries:
+            - pypi:
+                package: imbalanced-learn==0.14.0
+            - pypi:
+                package: lightgbm==4.3.0
+            - pypi:
+                package: mlflow==3.0.1
+            - pypi:
+                package: neuralprophet==0.8.0
+            - pypi:
+                package: numpy==1.26.4
+            - pypi:
+                package: optuna==3.6.0
+            - pypi:
+                package: optuna-integration==3.6.0
+            - pypi:
+                package: pandas==2.3.3
+            - pypi:
+                package: ray[all]==2.37.0
+            - pypi:
+                package: scikit-learn==1.6.1
+            - pypi:
+                package: scipy==1.16.3
+            - pypi:
+                package: torch==2.5.1
+            - pypi:
+                package: tensorflow==2.17.0
+            - pypi:
+                package: xgboost==2.1.4
+          spark_python_task:
+            python_file: "${var.workspace_name}/${bundle.name}/${bundle.target}/files/src/training/train_model.py"
+            source: WORKSPACE
+            parameters:
+              - "--env"
+              - "${bundle.target}"
+              - "--experiment_name"
+              - "/Users/${workspace.current_user.userName}/${bundle.target}-model_use_case_1_exp"
+              - "--model_name"
+              - "${var.catalog_name}.${bundle.name}.model_use_case_1"
+              - "--catalog_name"
+              - "${var.catalog_name}"
+              - "--training_data_config"
+              - "${var.workspace_name}/${bundle.name}/${bundle.target}/files/configs/model_use_case_1/training_data_config.yml"
+              - "--model_config"
+              - "${var.workspace_name}/${bundle.name}/${bundle.target}/files/configs/model_use_case_1/model_config.yml"
+              - "--split_config"
+              - "${var.workspace_name}/${bundle.name}/${bundle.target}/files/configs/model_use_case_1/split_config.yml"
+              - "--metrics_latency_table"
+              - "${var.catalog_name}.${bundle.name}.model_use_case_1_metrics"
+              - "--validation_config"
+              - "${var.workspace_name}/${bundle.name}/${bundle.target}/files/configs/model_use_case_1/validation_config.yml"
+              - "--baseline_table_name"
+              - "${var.catalog_name}.${bundle.name}.model_use_case_1_baseline"
+        - task_key: Validation
+          job_cluster_key: Job_cluster
+          depends_on:
+            - task_key: Training
+          libraries:
+            - pypi:
+                package: imbalanced-learn==0.14.0
+            - pypi:
+                package: lightgbm==4.3.0
+            - pypi:
+                package: mlflow==3.0.1
+            - pypi:
+                package: neuralprophet==0.8.0
+            - pypi:
+                package: numpy==1.26.4
+            - pypi:
+                package: optuna==3.6.0
+            - pypi:
+                package: optuna-integration==3.6.0
+            - pypi:
+                package: pandas==2.3.3
+            - pypi:
+                package: ray[all]==2.37.0
+            - pypi:
+                package: scikit-learn==1.6.1
+            - pypi:
+                package: scipy==1.16.3
+            - pypi:
+                package: torch==2.5.1
+            - pypi:
+                package: tensorflow==2.17.0
+            - pypi:
+                package: xgboost==2.1.4
+          spark_python_task:
+            python_file: "${var.workspace_name}/${bundle.name}/${bundle.target}/files/src/validation/validate_model.py"
+            source: WORKSPACE
+            parameters:
+              - "--env"
+              - "${bundle.target}"
+              - "--dependency_task_key"
+              - "Training"
+              - "--catalog_name"
+              - "${var.catalog_name}"
+              - "--model_name"
+              - "${var.catalog_name}.${bundle.name}.model_use_case_1"
+              - "--experiment_name"
+              - "/Users/${workspace.current_user.userName}/${bundle.target}-model_use_case_1_exp"
+              - "--training_data_config"
+              - "${var.workspace_name}/${bundle.name}/${bundle.target}/files/configs/model_use_case_1/training_data_config.yml"
+              - "--model_config"
+              - "${var.workspace_name}/${bundle.name}/${bundle.target}/files/configs/model_use_case_1/model_config.yml"
+              - "--validation_config"
+              - "${var.workspace_name}/${bundle.name}/${bundle.target}/files/configs/model_use_case_1/validation_config.yml"
+              - "--eval_result_config"
+              - "${var.workspace_name}/${bundle.name}/${bundle.target}/files/configs/model_use_case_1/eval_result_config.yml"
+              - "--split_config"
+              - "${var.workspace_name}/${bundle.name}/${bundle.target}/files/configs/model_use_case_1/split_config.yml"
+              - "--metrics_table"
+              - "${var.catalog_name}.${bundle.name}.model_use_case_1_metrics"
+#      schedule:
+#        quartz_cron_expression: ${cron_job}
+#        timezone_id: UTC
+#        pause_status: ${pause_status}
+      <<: *permissions
