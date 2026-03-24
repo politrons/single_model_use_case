@@ -18,6 +18,8 @@ targets:
   dev:
     mode: development
     default: true
+    presets:
+      source_linked_deployment: false
     variables:
       catalog_name: ${catalog_dev_name}
     workspace:
