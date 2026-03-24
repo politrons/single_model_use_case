@@ -18,6 +18,7 @@ Skip behavior:
 from __future__ import annotations
 
 import argparse
+import inspect
 import logging
 import math
 import sys
@@ -32,7 +33,12 @@ from mlflow.models import EvaluationResult  # type: ignore # noqa
 from pyspark.sql import Row, SparkSession  # type: ignore # noqa
 
 # Allow running this script directly from workspace source without installing a wheel.
-_SRC_ROOT = Path(__file__).resolve().parents[1]
+_THIS_FILE = globals().get("__file__") or (
+    inspect.currentframe().f_code.co_filename if inspect.currentframe() else ""
+)
+if not _THIS_FILE:
+    raise RuntimeError("Could not resolve script file path to initialize source imports.")
+_SRC_ROOT = Path(_THIS_FILE).resolve().parents[1]
 if str(_SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(_SRC_ROOT))
 if "databricks_mlops_stack" not in sys.modules:
