@@ -5,8 +5,8 @@ common_permissions: &permissions
 
 resources:
   jobs:
-    ${model_name}-factory-job:
-      name: ${bundle.target}-${bundle.name}-${model_name}-factory-job
+    model_use_case_1-factory-job:
+      name: ${bundle.target}-${bundle.name}-model_use_case_1-factory-job
       # --- Serverless: define a single environment and reference it from each non-notebook task ---
       environments:
         - environment_key: serverless_default
@@ -47,23 +47,23 @@ resources:
               - "--experiment_name"
               - "/Users/${workspace.current_user.userName}/${bundle.target}-${experiment_name}"
               - "--model_name"
-              - "${var.catalog_name}.${bundle.name}.${model_name}"
+              - "${var.catalog_name}.${bundle.name}.model_use_case_1"
               - "--catalog_name"
               - "${var.catalog_name}"
               - "--databricks_mlops_stack_version"
               - "${WHEEL_VERSION}"
               - "--training_data_config"
-              - "${var.workspace_name}/${bundle.name}/${bundle.target}/files/configs/training_data_config.yml"
+              - "${var.workspace_name}/${bundle.name}/${bundle.target}/files/configs/model_use_case_1/training_data_config.yml"
               - "--model_config"
-              - "${var.workspace_name}/${bundle.name}/${bundle.target}/files/configs/model_config.yml"
+              - "${var.workspace_name}/${bundle.name}/${bundle.target}/files/configs/model_use_case_1/model_config.yml"
               - "--split_config"
-              - "${var.workspace_name}/${bundle.name}/${bundle.target}/files/configs/split_config.yml"
+              - "${var.workspace_name}/${bundle.name}/${bundle.target}/files/configs/model_use_case_1/split_config.yml"
               - "--metrics_latency_table"
-              - "${var.catalog_name}.${bundle.name}.${model_name}_metrics"
+              - "${var.catalog_name}.${bundle.name}.model_use_case_1_metrics"
               - "--validation_config"
-              - "${var.workspace_name}/${bundle.name}/${bundle.target}/files/configs/validation_config.yml"
+              - "${var.workspace_name}/${bundle.name}/${bundle.target}/files/configs/model_use_case_1/validation_config.yml"
               - "--baseline_table_name"
-              - "${var.catalog_name}.${bundle.name}.${model_name}_baseline"
+              - "${var.catalog_name}.${bundle.name}.model_use_case_1_baseline"
         - task_key: Validation
           environment_key: serverless_default
           depends_on:
@@ -79,21 +79,21 @@ resources:
               - "--catalog_name"
               - "${var.catalog_name}"
               - "--model_name"
-              - "${var.catalog_name}.${bundle.name}.${model_name}"
+              - "${var.catalog_name}.${bundle.name}.model_use_case_1"
               - "--experiment_name"
               - "/Users/${workspace.current_user.userName}/${bundle.target}-${experiment_name}"
               - "--training_data_config"
-              - "${var.workspace_name}/${bundle.name}/${bundle.target}/files/configs/training_data_config.yml"
+              - "${var.workspace_name}/${bundle.name}/${bundle.target}/files/configs/model_use_case_1/training_data_config.yml"
               - "--model_config"
-              - "${var.workspace_name}/${bundle.name}/${bundle.target}/files/configs/model_config.yml"
+              - "${var.workspace_name}/${bundle.name}/${bundle.target}/files/configs/model_use_case_1/model_config.yml"
               - "--validation_config"
-              - "${var.workspace_name}/${bundle.name}/${bundle.target}/files/configs/validation_config.yml"
+              - "${var.workspace_name}/${bundle.name}/${bundle.target}/files/configs/model_use_case_1/validation_config.yml"
               - "--eval_result_config"
-              - "${var.workspace_name}/${bundle.name}/${bundle.target}/files/configs/eval_result_config.yml"
+              - "${var.workspace_name}/${bundle.name}/${bundle.target}/files/configs/model_use_case_1/eval_result_config.yml"
               - "--split_config"
-              - "${var.workspace_name}/${bundle.name}/${bundle.target}/files/configs/split_config.yml"
+              - "${var.workspace_name}/${bundle.name}/${bundle.target}/files/configs/model_use_case_1/split_config.yml"
               - "--metrics_table"
-              - "${var.catalog_name}.${bundle.name}.${model_name}_metrics"
+              - "${var.catalog_name}.${bundle.name}.model_use_case_1_metrics"
 #      schedule:
 #        quartz_cron_expression: ${cron_job}
 #        timezone_id: UTC
