@@ -1,0 +1,109 @@
+common_permissions: &permissions
+  permissions:
+    - level: CAN_MANAGE
+      group_name: users
+
+resources:
+  jobs:
+    ${model_name}-factory-job:
+      name: ${bundle.target}-${bundle.name}-${model_name}-factory-job
+      # --- Serverless: define a single environment and reference it from each non-notebook task ---
+      environments:
+        - environment_key: serverless_default
+          spec:
+            environment_version: "4"
+            dependencies:
+              - "imbalanced-learn==0.14.0"
+              - "lightgbm==4.3.0"
+              - "mlflow==3.0.1"
+              - "neuralprophet==0.8.0"
+              - "numpy==1.26.4"
+              - "optuna==3.6.0"
+              - "optuna-integration==3.6.0"
+              - "pandas==2.3.3"
+              - "ray[all]"
+              - "scikit-learn==1.6.1"
+              - "scipy==1.16.3"
+              - "torch==2.5.1"
+              - "tensorflow==2.17.0"
+              - "xgboost==2.1.4"
+              - "pyspark"
+              - "PyYAML"
+              - "pytz~=2022.2.1"
+              - "databricks-sdk>=0.57"
+              - "databricks-feature-engineering==0.12.1"
+              - "azure-keyvault==4.2.0"
+              - "shap==0.46.0"
+
+      tasks:
+        - task_key: Training
+          environment_key: serverless_default
+          spark_python_task:
+            python_file: "${var.workspace_name}/${bundle.name}/${bundle.target}/files/src/training/train_model.py"
+            source: WORKSPACE
+            parameters:
+              - "--env"
+              - "${bundle.target}"
+              - "--experiment_name"
+              - "/Users/${workspace.current_user.userName}/${bundle.target}-${experiment_name}"
+              - "--model_name"
+              - "${var.catalog_name}.${bundle.name}.${model_name}"
+              - "--catalog_name"
+              - "${var.catalog_name}"
+              - "--databricks_mlops_stack_version"
+              - "${WHEEL_VERSION}"
+              - "--training_data_config"
+              - "${var.workspace_name}/${bundle.name}/${bundle.target}/files/configs/training_data_config.yml"
+              - "--model_config"
+              - "${var.workspace_name}/${bundle.name}/${bundle.target}/files/configs/model_config.yml"
+              - "--split_config"
+              - "${var.workspace_name}/${bundle.name}/${bundle.target}/files/configs/split_config.yml"
+              - "--metrics_latency_table"
+              - "${var.catalog_name}.${bundle.name}.${model_name}_metrics"
+              - "--validation_config"
+              - "${var.workspace_name}/${bundle.name}/${bundle.target}/files/configs/validation_config.yml"
+              - "--baseline_table_name"
+              - "${var.catalog_name}.${bundle.name}.${model_name}_baseline"
+        - task_key: Validation
+          environment_key: serverless_default
+          depends_on:
+            - task_key: Training
+          spark_python_task:
+            python_file: "${var.workspace_name}/${bundle.name}/${bundle.target}/files/src/validation/validate_model.py"
+            source: WORKSPACE
+            parameters:
+              - "--env"
+              - "${bundle.target}"
+              - "--dependency_task_key"
+              - "Training"
+              - "--catalog_name"
+              - "${var.catalog_name}"
+              - "--model_name"
+              - "${var.catalog_name}.${bundle.name}.${model_name}"
+              - "--experiment_name"
+              - "/Users/${workspace.current_user.userName}/${bundle.target}-${experiment_name}"
+              - "--training_data_config"
+              - "${var.workspace_name}/${bundle.name}/${bundle.target}/files/configs/training_data_config.yml"
+              - "--model_config"
+              - "${var.workspace_name}/${bundle.name}/${bundle.target}/files/configs/model_config.yml"
+              - "--validation_config"
+              - "${var.workspace_name}/${bundle.name}/${bundle.target}/files/configs/validation_config.yml"
+              - "--eval_result_config"
+              - "${var.workspace_name}/${bundle.name}/${bundle.target}/files/configs/eval_result_config.yml"
+              - "--split_config"
+              - "${var.workspace_name}/${bundle.name}/${bundle.target}/files/configs/split_config.yml"
+              - "--metrics_table"
+              - "${var.catalog_name}.${bundle.name}.${model_name}_metrics"
+      schedule:
+        quartz_cron_expression: ${cron_job}
+        timezone_id: UTC
+        pause_status: ${pause_status}
+      email_notifications:
+        on_failure:
+          - ${var.email_group}
+        no_alert_for_skipped_runs: true
+      tags:
+        project_name: ${var.db_project_name}
+        project_created_by: ${var.project_created_by}
+        business_unit: ${var.business_unit}
+      <<: *permissions
