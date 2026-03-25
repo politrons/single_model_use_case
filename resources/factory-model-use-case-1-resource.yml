@@ -92,6 +92,16 @@ resources:
               - "${var.workspace_name}/${bundle.name}/${bundle.target}/files/configs/model_use_case_1/split_config.yml"
               - "--metrics_table"
               - "${var.catalog_name}.${bundle.name}.model_use_case_1_metrics"
+        - task_key: Deployment
+          environment_key: serverless_default
+          depends_on:
+            - task_key: Validation
+          spark_python_task:
+            python_file: "${var.workspace_name}/${bundle.name}/${bundle.target}/files/src/deployment/deploy_model.py"
+            source: WORKSPACE
+            parameters:
+              - "--env"
+              - "${bundle.target}"
 #      schedule:
 #        quartz_cron_expression: ${cron_job}
 #        timezone_id: UTC
