@@ -11,9 +11,24 @@ resources:
         - job_cluster_key: Job_cluster
           new_cluster:
             spark_version: 16.4.x-scala2.12
+            # Required by your cluster policy when using pools
+            instance_pool_id: ${var.instance_pool_id}
+            driver_instance_pool_id: ${var.instance_pool_id}
+            policy_id: ${var.policy_id}
+            # Must satisfy policy constraints
+            custom_tags:
+              local-dbx-OpsTeam: CDAO ML Engineering
+              local-dbx-opco: ${var.load_dbx_opco}
+              local-dbx-env: ${var.job_cluster_env}
+              local-dbx-domain: CDAO
             data_security_mode: SINGLE_USER
             runtime_engine: STANDARD
-            num_workers: 1
+            kind: CLASSIC_PREVIEW
+            use_ml_runtime: true
+            is_single_node: false
+            autoscale:
+              min_workers: 1
+              max_workers: 2
 
       tasks:
         - task_key: Batch
