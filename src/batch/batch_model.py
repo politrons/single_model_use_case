@@ -94,6 +94,33 @@ def _resolve_model_uri(cfg: Config) -> str:
     return f"models:/{cfg.model_name}/{latest}"
 
 
+def _install_sklearn_pickle_compat() -> bool:
+    """Install compatibility shims for known sklearn pickle internals."""
+    try:
+        from sklearn.compose import _column_transformer  # type: ignore
+    except Exception:
+        return False
+
+    if hasattr(_column_transformer, "_RemainderColsList"):
+        return False
+
+    class _RemainderColsList(list):
+        pass
+
+    _RemainderColsList.__module__ = "sklearn.compose._column_transformer"
+    setattr(_column_transformer, "_RemainderColsList", _RemainderColsList)
+    LOG.warning(
+        "Installed sklearn compatibility shim: "
+        "sklearn.compose._column_transformer._RemainderColsList"
+    )
+    return True
+
+
+def _load_model_with_compat(model_uri: str) -> Any:
+    _install_sklearn_pickle_compat()
+    return mlflow.pyfunc.load_model(model_uri)
+
+
 def _to_prediction_series(raw: Any, length: int) -> pd.Series:
     if isinstance(raw, pd.Series):
         return raw.reset_index(drop=True)
@@ -229,7 +256,7 @@ def run_template(cfg: Config) -> tuple[str, int]:
         mlflow.set_experiment(cfg.experiment_name)
 
     model_uri = _resolve_model_uri(cfg)
-    model = mlflow.pyfunc.load_model(model_uri)
+    model = _load_model_with_compat(model_uri)
 
     training_data_impl = TrainingDataConfig()
     call_args = dict(cfg.training_data_config)
@@ -304,4 +331,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     main()
-
