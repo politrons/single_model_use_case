@@ -12,6 +12,7 @@ variables:
     description: The catalog name to save the trained model
 include:
   - ./resources/factory-model-use-case-1-resource.yml
+  - ./resources/batch-model-use-case-1-resource.yml
 
 # Deployment Target specific values for workspace
 targets:
