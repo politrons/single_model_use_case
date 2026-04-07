@@ -834,7 +834,7 @@ _BASE_PARAMS: dict = {'random_state': 42}
 # TODO: Rollback
 # _EXTRA_PARAMS: dict = {'random_state': 42, 'has_hyper_search': False, 'all_feature_transformers': ['robustscaler'], 'number_used_features': 9, 'temporal_reference_column': 'TreatmentDate', 'feature_columns': ['AvgProcessingTimeW1', 'AvgProcessingTimeW2', 'AvgProcessingTimeW3', 'AvgProcessingTimeW4', 'CumulativeAmountPaid', 'CumulativeNumberClaimsPaid', 'CumulativeNumberInvoicesPaid', 'NumberPreAuth', 'TreatmentDateMonth']}
 
-_EXTRA_PARAMS: dict = {'random_state': 42, 'has_hyper_search': False, 'all_feature_transformers': ['robustscaler'], 'number_used_features': 9, 'temporal_reference_column': 'claim_date', 'feature_columns': ['subscription_length','vehicle_age','customer_age']}
+_EXTRA_PARAMS: dict = {'random_state': 42, 'has_hyper_search': False, 'all_feature_transformers': ['robustscaler'], 'number_used_features': 3, 'temporal_reference_column': 'claim_date', 'feature_columns': ['subscription_length','vehicle_age','customer_age']}
 
 _N_JOBS: int = -1
 
