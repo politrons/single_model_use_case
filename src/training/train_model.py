@@ -320,7 +320,7 @@ def _register_model(cfg: Config,
         mlflow.log_metric("train_time_ms", float(train_ms))
         mlflow.log_metric("predict_time_ms", float(predict_ms))
         mlflow.log_params(get_non_default_pipeline_params(_model_for_param_logging(model)))
-        prophet_model.log_model(model, cfg.model_name, signature, input_example, cfg.model_config)
+        prophet_model.log_model(model, cfg.model_name, signature, input_example)
     return run_id
 
 
