@@ -36,6 +36,8 @@ if "databricks_mlops_stack" not in sys.modules:
 
 from databricks_mlops_stack.training.data.training_data_config import TrainingDataConfig  # type: ignore # noqa
 from databricks_mlops_stack.training.model.model_config import ModelContractConfig  # type: ignore # noqa
+from databricks_mlops_stack.training.model.prophet_model import ProphetModelImpl  # type: ignore # noqa
+
 from databricks_mlops_stack.training.model.predict_and_proba_wrapper import (  # type: ignore # noqa
     PredictAndProbaWrapper,
     to_prediction_series as _to_prediction_series,
@@ -484,7 +486,6 @@ def run_template(cfg: Config) -> tuple[str, int, float, float]:
     all_split_set = train_test_split_impl.split(x_pdf, y_pdf, cfg.split_config)
 
     # Train Model
-    model_impl = _load_model_impl(cfg)
     maybe_random_state_from_split = cfg.split_config.get(CONFIG_RANDOM_STATE)
     maybe_random_state_from_model = cfg.model_config.get(CONFIG_RANDOM_STATE)
     if maybe_random_state_from_split and not maybe_random_state_from_model:
@@ -494,8 +495,7 @@ def run_template(cfg: Config) -> tuple[str, int, float, float]:
     _model_call_args[CONFIG_DEFAULT_CATALOG_NAME] = cfg.catalog_name
     _model_call_args[CONFIG_ENV] = cfg.env
 
-    model = model_impl.get_model(_model_call_args)
-    model = _maybe_wrap_model_for_prediction_method(cfg, model)
+    model = ProphetModelImpl()
     model, train_ms = _time_fit(
         model=model,
         X=all_split_set[X_TRAIN],
