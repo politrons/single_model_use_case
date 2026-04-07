@@ -309,7 +309,7 @@ def _append_latency_metrics(
 def _register_model(cfg: Config,
                     input_example,
                     model,
-                    model_impl: ModelContractConfig | Any,
+                    prophet_model: ProphetModelImpl,
                     predict_ms: float,
                     signature: ModelSignature,
                     train_ms: float) -> str:
@@ -320,7 +320,7 @@ def _register_model(cfg: Config,
         mlflow.log_metric("train_time_ms", float(train_ms))
         mlflow.log_metric("predict_time_ms", float(predict_ms))
         mlflow.log_params(get_non_default_pipeline_params(_model_for_param_logging(model)))
-        model_impl.log_model(model, cfg.model_name, signature, input_example, cfg.model_config)
+        prophet_model.log_model(model, cfg.model_name, signature, input_example, cfg.model_config)
     return run_id
 
 
@@ -495,7 +495,8 @@ def run_template(cfg: Config) -> tuple[str, int, float, float]:
     _model_call_args[CONFIG_DEFAULT_CATALOG_NAME] = cfg.catalog_name
     _model_call_args[CONFIG_ENV] = cfg.env
 
-    model = ProphetModelImpl().get_model()
+    prophet_model = ProphetModelImpl()
+    model = prophet_model.get_model()
     model, train_ms = _time_fit(
         model=model,
         X=all_split_set[X_TRAIN],
@@ -510,7 +511,7 @@ def run_template(cfg: Config) -> tuple[str, int, float, float]:
 
     # Log & register
     mlflow.end_run()
-    run_id = _register_model(cfg, input_example, model, model_impl, predict_ms, signature, train_ms)
+    run_id = _register_model(cfg, input_example, model, prophet_model, predict_ms, signature, train_ms)
 
     _register_model_card(cfg)
 
