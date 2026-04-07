@@ -22,7 +22,6 @@ from tensorflow.keras.metrics import Metric as tfMetric  # type: ignore # noqa
 from tensorflow.keras.callbacks import History as tfHistory  # type: ignore # noqa
 from tensorflow.keras.callbacks import EarlyStopping as tfEarlyStopping  # type: ignore # noqa
 import mlflow
-from databricks_mlops_stack.training.model.model_contract import ModelContract  # type: ignore # noqa
 
 # ────────────────────────────────────────────────────────────────────
 # Inlined from multi_cluster_wrapper.py
@@ -837,7 +836,10 @@ _FACTORY_FN = _build_cluster_model
 
 # ── Contract implementation ──────────────────────────────────────── #
 
-class ProphetModelImpl(ModelContract):
+class ProphetModelImpl:
+
+    def __init__(self):
+        pass
 
     def get_model(self, args: dict[str, Any]):
         model = MultiClusterWrapper(
