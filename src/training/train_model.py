@@ -495,7 +495,7 @@ def run_template(cfg: Config) -> tuple[str, int, float, float]:
     _model_call_args[CONFIG_DEFAULT_CATALOG_NAME] = cfg.catalog_name
     _model_call_args[CONFIG_ENV] = cfg.env
 
-    model = ProphetModelImpl()
+    model = ProphetModelImpl().get_model()
     model, train_ms = _time_fit(
         model=model,
         X=all_split_set[X_TRAIN],

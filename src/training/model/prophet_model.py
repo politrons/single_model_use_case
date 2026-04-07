@@ -841,7 +841,7 @@ class ProphetModelImpl:
     def __init__(self):
         pass
 
-    def get_model(self, args: dict[str, Any]):
+    def get_model(self):
         model = MultiClusterWrapper(
             numerical_features=_NUMERICAL_FEATURES,
             segment_columns=_SEGMENT_COLUMNS,
@@ -861,7 +861,6 @@ class ProphetModelImpl:
         model_name,
         signature,
         input_example,
-        args: dict[str, Any],
     ):
         mlflow.sklearn.log_model(
             model,
