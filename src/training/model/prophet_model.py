@@ -815,9 +815,15 @@ def _build_cluster_model(
 # ────────────────────────────────────────────────────────────────────
 # ── Model configuration ──────────────────────────────────────────── #
 
-_NUMERICAL_FEATURES: list[str] = ['AvgProcessingTimeW1', 'AvgProcessingTimeW2', 'AvgProcessingTimeW3', 'AvgProcessingTimeW4', 'CumulativeAmountPaid', 'CumulativeNumberClaimsPaid', 'CumulativeNumberInvoicesPaid', 'NumberPreAuth', 'TreatmentDateMonth']
+# TODO: Rollback
+# _NUMERICAL_FEATURES: list[str] = ['AvgProcessingTimeW1', 'AvgProcessingTimeW2', 'AvgProcessingTimeW3', 'AvgProcessingTimeW4', 'CumulativeAmountPaid', 'CumulativeNumberClaimsPaid', 'CumulativeNumberInvoicesPaid', 'NumberPreAuth', 'TreatmentDateMonth']
 
-_SEGMENT_COLUMNS: list[str] = ['PolicySubType', 'MajorICDGroupingDescription', 'Lag']
+_NUMERICAL_FEATURES: list[str] = ['subscription_length','vehicle_age','customer_age']
+
+# TODO: Rollback
+# _SEGMENT_COLUMNS: list[str] = ['PolicySubType', 'MajorICDGroupingDescription', 'Lag']
+
+_SEGMENT_COLUMNS: list[str] = ['segment', 'is_esc']
 
 _CONFIG: dict = {'architecture': [{'layer': {'type': 'dense', 'params': {'units': 32, 'activation': 'linear', 'name': 'layer_0th'}}}, {'layer': {'type': 'dense', 'params': {'units': 16, 'activation': 'linear', 'name': 'layer_1th'}}}], 'loss': {'type': 'huber', 'params': {'delta': 1.5}}, 'optimizer': {'type': 'adam', 'params': {'learning_rate': 0.01}}, 'epochs': 300, 'batch_size': 2000, 'eval_metric': {'type': 'mean_squared_error'}}
 
@@ -825,13 +831,17 @@ _RANDOM_STATE: int = 42
 
 _BASE_PARAMS: dict = {'random_state': 42}
 
-_EXTRA_PARAMS: dict = {'random_state': 42, 'has_hyper_search': False, 'all_feature_transformers': ['robustscaler'], 'number_used_features': 9, 'temporal_reference_column': 'TreatmentDate', 'feature_columns': ['AvgProcessingTimeW1', 'AvgProcessingTimeW2', 'AvgProcessingTimeW3', 'AvgProcessingTimeW4', 'CumulativeAmountPaid', 'CumulativeNumberClaimsPaid', 'CumulativeNumberInvoicesPaid', 'NumberPreAuth', 'TreatmentDateMonth']}
+# TODO: Rollback
+# _EXTRA_PARAMS: dict = {'random_state': 42, 'has_hyper_search': False, 'all_feature_transformers': ['robustscaler'], 'number_used_features': 9, 'temporal_reference_column': 'TreatmentDate', 'feature_columns': ['AvgProcessingTimeW1', 'AvgProcessingTimeW2', 'AvgProcessingTimeW3', 'AvgProcessingTimeW4', 'CumulativeAmountPaid', 'CumulativeNumberClaimsPaid', 'CumulativeNumberInvoicesPaid', 'NumberPreAuth', 'TreatmentDateMonth']}
+
+_EXTRA_PARAMS: dict = {'random_state': 42, 'has_hyper_search': False, 'all_feature_transformers': ['robustscaler'], 'number_used_features': 9, 'temporal_reference_column': 'claim_date', 'feature_columns': ['subscription_length','vehicle_age','customer_age']}
 
 _N_JOBS: int = -1
 
 _IS_TENSORFLOW: bool = True
 
 _FACTORY_FN = _build_cluster_model
+
 
 
 # ── Contract implementation ──────────────────────────────────────── #
