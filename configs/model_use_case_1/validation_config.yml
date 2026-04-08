@@ -1,3 +1,4 @@
 model_type: "regressor"
 targets: "claim_status"
 target_type: "bigint"
+skip_evaluation: "true"
