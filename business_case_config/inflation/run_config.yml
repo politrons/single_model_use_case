@@ -1,0 +1,6 @@
+timeframe_info:
+  use_custom_ranges: false
+  training_begin: '2025-01-01'
+  training_end: '2025-12-01'
+  nb_forecast_years: 4
+is_to_compensate_ibnr_on_invoices_view: true

@@ -1,25 +1,25 @@
-random_state: 123
-prediction_method: predict_proba
-model:
-  type: xgboost
-  task: classification
-  params:
-    eta: 0.4
-feature_columns:
-  - subscription_length
-  - vehicle_age
-  - customer_age
-  - segment
-  - is_esc
-features_transformers:
-  - name: minmax_scaler
-    type: MinMaxScaler
-    features: ["vehicle_age"]
-    params: {}
-  - name: onehot
-    type: OneHotEncoder
-    features: ["segment"]
-    params: {}
-sampling:
-  type: SMOTE
-  params: {}
+#random_state: 123
+#prediction_method: predict_proba
+#model:
+#  type: xgboost
+#  task: classification
+#  params:
+#    eta: 0.4
+#feature_columns:
+#  - subscription_length
+#  - vehicle_age
+#  - customer_age
+#  - segment
+#  - is_esc
+#features_transformers:
+#  - name: minmax_scaler
+#    type: MinMaxScaler
+#    features: ["vehicle_age"]
+#    params: {}
+#  - name: onehot
+#    type: OneHotEncoder
+#    features: ["segment"]
+#    params: {}
+#sampling:
+#  type: SMOTE
+#  params: {}

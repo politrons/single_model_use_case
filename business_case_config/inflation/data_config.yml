@@ -1,0 +1,12 @@
+tables:
+  active_members:
+    full_name: axahealth_dataplatform_pr_gold.processed_layer.fact_active_members_intermediate
+    primary_keys:
+    - PolicyID
+    - MemberID
+    - YearMonthDate
+  external_regressors:
+    full_name: axahealth_dataplatform_pr_gold.data_science.actuarial_ml_external_regressors
+    primary_keys:
+    - SeenMonth
+    - YearMonthDate

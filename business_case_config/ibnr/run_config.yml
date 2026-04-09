@@ -1,0 +1,100 @@
+inference_timeframes:
+  use_custom_ranges: false
+  ranges:
+  - begin: '2025-01-01'
+    end: '2025-12-01'
+  - begin: '2025-04-01'
+    end: '2026-03-01'
+per_lag_modeling:
+  chain_ladder: false
+  neural_network: true
+ibnr_standalone:
+  model_types:
+    chain_ladder:
+      model_configs:
+        - null
+      segmentation_combinations:
+      - - PolicySubType
+        - SystemID
+      targets:
+      - UltimateCharge
+      nb_training_years:
+      - 5
+      - 7
+      input_features_combinations:
+      - []
+    neural_network:
+      model_configs:
+      - unit_per_layer:
+        - 32
+        - 16
+        activation: linear
+        learning_rate: 0.01
+        epochs: 300
+        batch_size: 2000
+        loss: huber
+      segmentation_combinations:
+      - - PolicySubType
+        - SystemID
+      nb_training_years:
+      - 3
+      - 5
+      - 7
+      targets:
+      - UltimateNumberInvoices
+      - UltimateCharge
+      input_features_combinations:
+      - - TreatmentDateMonth
+        - NumberPreAuth
+        - CumulativeNumberInvoicesPaid
+        - AvgProcessingTimeW1
+        - AvgProcessingTimeW2
+        - AvgProcessingTimeW3
+        - AvgProcessingTimeW4
+        - CumulativeAmountPaid
+        - CumulativeNumberClaimsPaid
+ibnr_inflation:
+  model_types:
+    chain_ladder:
+      model_configs:
+        - null
+      segmentation_combinations:
+      - - PolicySubType
+        - MajorICDGroupingDescription
+      targets:
+      - UltimateNumberClaims
+      - UltimateNumberInvoices
+      - UltimateCharge
+      nb_training_years:
+      - 5
+      input_features_combinations:
+      - []
+    neural_network:
+      model_configs:
+      - unit_per_layer:
+        - 32
+        - 16
+        activation: linear
+        learning_rate: 0.01
+        epochs: 300
+        batch_size: 2000
+        loss: huber
+      segmentation_combinations:
+      - - PolicySubType
+        - MajorICDGroupingDescription
+      nb_training_years:
+      - 3
+      targets:
+      - UltimateNumberClaims
+      - UltimateNumberInvoices
+      - UltimateCharge
+      input_features_combinations:
+      - - TreatmentDateMonth
+        - NumberPreAuth
+        - CumulativeNumberInvoicesPaid
+        - AvgProcessingTimeW1
+        - AvgProcessingTimeW2
+        - AvgProcessingTimeW3
+        - AvgProcessingTimeW4
+        - CumulativeAmountPaid
+        - CumulativeNumberClaimsPaid

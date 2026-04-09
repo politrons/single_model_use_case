@@ -1,0 +1,46 @@
+tables:
+  policies:
+    full_name: axahealth_dataplatform_pr_gold.base_layer.policy
+    primary_keys:
+    - PolicyID
+    - SystemID
+    - HistoryID
+  members:
+    full_name: axahealth_dataplatform_pr_gold.base_layer.members
+    primary_keys:
+    - MemberID
+    - PolicyID
+    - HistoryID
+  geography:
+    full_name: axahealth_dataplatform_pr_gold.base_layer.dim_geography
+    primary_keys:
+    - PostCode
+  invoicebase:
+    full_name: axahealth_dataplatform_pr_gold.base_layer.invoice
+    primary_keys:
+    - InvoiceKey
+  invoicelink:
+    full_name: axahealth_dataplatform_pr_gold.base_layer.invoice_link
+    primary_keys:
+    - InvoiceKey
+  contracts:
+    primary_keys:
+    - PolicyID
+    - SystemID
+    - MemberID
+    - HistoryID
+  invoices:
+    primary_keys:
+    - InvoiceKey
+  preauthbase:
+    full_name: axahealth_dataplatform_pr_gold.base_layer.pre_auth_treatment
+    primary_keys:
+    - PreAuthTreatmentKey
+    - PreAuthTreatmentHistoryKey
+  claimlink:
+    full_name: axahealth_dataplatform_pr_gold.base_layer.claim_link
+    primary_keys:
+    - ClaimKey
+  claimcontract:
+    primary_keys:
+    - ClaimKey
