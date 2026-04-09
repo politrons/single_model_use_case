@@ -1,14 +1,17 @@
 import logging
+from datetime import datetime
 from typing import Any
+
 import numpy as np  # type: ignore # noqa
 import pandas as pd  # type: ignore # noqa
 from dateutil.relativedelta import relativedelta  # type: ignore # noqa
 from prophet import Prophet  # type: ignore # noqa
 from sklearn.base import BaseEstimator, RegressorMixin  # type: ignore # noqa
-from sklearn.pipeline import Pipeline  # type: ignore # noqa
+
+LOG = logging.getLogger(__name__)
+
 
 class ProphetModel(BaseEstimator, RegressorMixin):
-
     def __init__(
         self,
         config: dict[str, Any],
@@ -16,135 +19,206 @@ class ProphetModel(BaseEstimator, RegressorMixin):
         params: dict,
         extra_params: dict,
     ) -> None:
-        
-        ###### Initialize the model here, through the config
-        ### most likley the config will be the 'clusters' property on the models_created from run_config
-        ### that contains, for each cluster, the actual config for the cluster (you can find by the cluster_id)
+        self.config = config or {}
+        self.random_state = random_state
+        self.params = params or {}
+        self.extra_params = extra_params or {}
 
-        ### the segmentation column will be only one, the cluster id (but still a list) ... but this will be passed at the MultiClusterWrapper level
+        self.feature_columns: list[str] = list(self.extra_params.get("feature_columns", []))
+        self.temporal_column: str = str(self.extra_params.get("temporal_reference_column", "ds"))
 
-        ### fit and predict will need to be refactored according to the signatures below (train needs to be renamed to fit)
-        ### since the properties will be parsed during init, you can access them through 'self'
-        ### regressors data will be already on the X, so you can access it (check how I did for neuralprophet)
+        self._cluster_key: tuple | None = None
+        self._active_model_config: dict[str, Any] = {}
+        self._regressors: list[str] = []
+        self.model: Prophet | None = None
 
-        return
-    
+    def set_cluster_key(self, key: tuple) -> None:
+        self._cluster_key = key
+
+    def _cluster_key_aliases(self) -> list[str]:
+        if self._cluster_key is None:
+            return []
+        raw = self._cluster_key if isinstance(self._cluster_key, tuple) else (self._cluster_key,)
+        aliases = {
+            str(self._cluster_key),
+            str(raw),
+            "__".join(str(x) for x in raw),
+        }
+        if len(raw) == 1:
+            aliases.add(str(raw[0]))
+        return list(aliases)
+
+    def _resolve_model_config(self) -> dict[str, Any]:
+        base = self.config if isinstance(self.config, dict) else {}
+        resolved: dict[str, Any] = {}
+
+        default_cfg = base.get("default_model_config")
+        if isinstance(default_cfg, dict):
+            resolved.update(default_cfg)
+
+        cluster_map = base.get("cluster_model_config_map")
+        if isinstance(cluster_map, dict):
+            for alias in self._cluster_key_aliases():
+                maybe_cluster_cfg = cluster_map.get(alias)
+                if isinstance(maybe_cluster_cfg, dict):
+                    resolved.update(maybe_cluster_cfg)
+                    break
+
+        for k, v in base.items():
+            if k in {"default_model_config", "cluster_model_config_map"}:
+                continue
+            resolved.setdefault(k, v)
+
+        return resolved
+
+    def _to_feature_dataframe(self, x: pd.DataFrame | np.ndarray) -> pd.DataFrame:
+        if isinstance(x, pd.DataFrame):
+            df = x.copy()
+        else:
+            arr = np.asarray(x)
+            if arr.ndim == 1:
+                arr = arr.reshape(-1, 1)
+            if self.feature_columns and len(self.feature_columns) == arr.shape[1]:
+                cols = self.feature_columns
+            else:
+                cols = [f"feature_{i}" for i in range(arr.shape[1])]
+            df = pd.DataFrame(arr, columns=cols)
+
+        if self.temporal_column not in df.columns:
+            raise ValueError(
+                f"Temporal column '{self.temporal_column}' not found in features. "
+                f"Columns: {list(df.columns)}"
+            )
+
+        df[self.temporal_column] = pd.to_datetime(df[self.temporal_column], errors="coerce")
+        if df[self.temporal_column].isna().any():
+            raise ValueError(f"Temporal column '{self.temporal_column}' contains invalid dates")
+
+        return df.reset_index(drop=True)
+
+    def _build_prophet(self, model_cfg: dict[str, Any], df: pd.DataFrame) -> Prophet:
+        changepoint_nb_months_censored = int(model_cfg.get("changepoint_nb_months_censored", 0) or 0)
+        changepoint_nb_per_year = model_cfg.get("changepoint_nb_per_year")
+        n_changepoints = model_cfg.get("n_changepoints")
+        if n_changepoints is None and changepoint_nb_per_year:
+            max_date = df[self.temporal_column].max()
+            min_date = df[self.temporal_column].min()
+            if isinstance(max_date, datetime) and isinstance(min_date, datetime):
+                effective_max = max_date - relativedelta(months=changepoint_nb_months_censored)
+                total_nb_months = (effective_max.year - min_date.year) * 12 + (effective_max.month - min_date.month) + 1
+                total_nb_months = max(1, total_nb_months)
+                n_changepoints = int(float(changepoint_nb_per_year) * total_nb_months / 12)
+
+        prophet_kwargs = {
+            "yearly_seasonality": bool(model_cfg.get("yearly_seasonality", False)),
+            "weekly_seasonality": bool(model_cfg.get("weekly_seasonality", False)),
+            "daily_seasonality": bool(model_cfg.get("daily_seasonality", False)),
+            "changepoint_range": float(model_cfg.get("changepoint_range", 1.0)),
+            "changepoint_prior_scale": float(model_cfg.get("changepoint_prior_scale", 0.05)),
+        }
+        if n_changepoints is not None:
+            prophet_kwargs["n_changepoints"] = int(n_changepoints)
+
+        model = Prophet(**prophet_kwargs)
+
+        seasonality_period = model_cfg.get("seasonality_period")
+        seasonality_fourier_order = model_cfg.get("seasonality_fourier_order")
+        if seasonality_period and seasonality_fourier_order:
+            model.add_seasonality(
+                name="custom_seasonality",
+                period=float(seasonality_period),
+                fourier_order=int(seasonality_fourier_order),
+            )
+
+        country_holidays = model_cfg.get("country_holidays")
+        if country_holidays:
+            model.add_country_holidays(country_name=str(country_holidays))
+
+        regressors = model_cfg.get("regressors")
+        self._regressors = []
+        if isinstance(regressors, dict):
+            for regressor_name, prior_scale in regressors.items():
+                kwargs: dict[str, Any] = {}
+                try:
+                    kwargs["prior_scale"] = float(prior_scale)
+                except Exception:
+                    pass
+                model.add_regressor(str(regressor_name), **kwargs)
+                self._regressors.append(str(regressor_name))
+
+        return model
+
     def fit(
         self,
-        X: pd.DataFrame,
-        y: pd.Series,
+        x: pd.DataFrame | np.ndarray,
+        y: pd.Series | np.ndarray,
         **extra_params,
-    ) -> None:
-        
-        return
-    
+    ) -> "ProphetModel":
+        _ = extra_params
+        df = self._to_feature_dataframe(x)
+        target = pd.Series(y).reset_index(drop=True)
+
+        if len(df) != len(target):
+            raise ValueError(f"X/y length mismatch ({len(df)} != {len(target)})")
+
+        model_cfg = self._resolve_model_config()
+        self._active_model_config = model_cfg
+        self.model = self._build_prophet(model_cfg, df)
+
+        prophet_df = pd.DataFrame(
+            {
+                "ds": df[self.temporal_column],
+                "y": pd.to_numeric(target, errors="coerce"),
+            }
+        )
+        for regressor in self._regressors:
+            if regressor not in df.columns:
+                raise ValueError(
+                    f"Regressor '{regressor}' declared in config but missing from features. "
+                    f"Columns: {list(df.columns)}"
+                )
+            prophet_df[regressor] = pd.to_numeric(df[regressor], errors="coerce")
+
+        months_censored = int(model_cfg.get("changepoint_nb_months_censored", 0) or 0)
+        if months_censored > 0:
+            cutoff_date = prophet_df["ds"].max() - relativedelta(months=months_censored)
+            prophet_df.loc[prophet_df["ds"] > cutoff_date, "y"] = None
+
+        self.model.fit(prophet_df)
+        return self
+
     def predict(
         self,
-        X: pd.DataFrame,
+        x: pd.DataFrame | np.ndarray,
     ) -> np.ndarray:
-        
-        return np.zeros(1)
+        if self.model is None:
+            raise RuntimeError("ProphetModel must be fitted before predict().")
 
-    # def train(self, df_past: pd.DataFrame, temporal_column: str, target_column: str) -> None:
-    #     min_date = df_past[temporal_column].min()
-    #     max_date = df_past[temporal_column].max()
-    #     total_nb_train_months = (max_date.year - min_date.year) * 12 + (max_date.month - min_date.month) + 1
+        df = self._to_feature_dataframe(x)
+        future = pd.DataFrame({"ds": df[self.temporal_column]})
+        for regressor in self._regressors:
+            if regressor not in df.columns:
+                raise ValueError(
+                    f"Regressor '{regressor}' declared in config but missing from prediction features."
+                )
+            future[regressor] = pd.to_numeric(df[regressor], errors="coerce")
 
-    #     cutoff_date = max_date - relativedelta(months=self.config.nb_months_censored)
-    #     df_past.loc[df_past[temporal_column] > cutoff_date, target_column] = None
+        forecast = self.model.predict(future)
+        if "yhat" not in forecast.columns:
+            raise ValueError("Prophet forecast does not contain 'yhat'")
+        return pd.to_numeric(forecast["yhat"], errors="coerce").fillna(0.0).to_numpy(dtype=float)
 
-    #     self.model = Prophet(
-    #         yearly_seasonality=False,
-    #         weekly_seasonality=False,
-    #         daily_seasonality=False,
-    #         changepoint_range=1.0,
-    #         n_changepoints=int(self.config.changepoint_nb_per_year * (total_nb_train_months - self.config.nb_months_censored) / 12),
-    #         changepoint_prior_scale=self.config.changepoint_prior_scale,
-    #     )
-
-    #     if self.config.seasonality_period:
-    #         self.model.add_seasonality(
-    #             name="seasonality",
-    #             period=self.config.seasonality_period,
-    #             fourier_order=self.config.seasonality_fourier_order,
-    #         )
-
-    #     if self.config.country_holidays:
-    #         self.model.add_country_holidays(country_name=self.config.country_holidays)
-
-    #     if self.config.shocks:
-    #         shocks = pd.DataFrame(columns=["holiday", "ds", "lower_window", "ds_upper"])
-    #         for name, shock_window in self.config.shocks.items():
-    #             shocks.loc[len(shocks)] = {
-    #                 "holiday": f"shock_{name}",
-    #                 "ds": pd.to_datetime(shock_window[0]),
-    #                 "lower_window": 0,
-    #                 "ds_upper": pd.to_datetime(shock_window[1]),
-    #             }
-    #         shocks["upper_window"] = (shocks["ds_upper"] - shocks["ds"]).dt.days  # TODO : unsure here
-
-    #         self.model.holidays = shocks
-    #         self.model.holidays_prior_scale = self.config.shock_prior_scale
-
-    #     if self.config.regressors:
-    #         for regressor, regressor_prior_scale in self.config.regressors.items():
-    #             self.model.add_regressor(regressor, prior_scale=regressor_prior_scale)
-
-    #     prophet_df = df_past.reset_index().rename(columns={temporal_column: "ds", target_column: "y"})
-    #     self.model.fit(prophet_df)
-
-    # def predict(
-    #     self,
-    #     df_futur: pd.DataFrame,
-    #     temporal_column: str,
-    #     target_column: str,
-    #     n_months_to_forecast: int,
-    #     verbose: bool = False,
-    # ) -> pd.DataFrame:
-    #     future = self.model.make_future_dataframe(periods=n_months_to_forecast, freq="M")
-    #     future["ds"] = future["ds"].apply(lambda x: (x.replace(day=1) if x.day < 15 else (x + pd.offsets.MonthBegin(1)).replace(day=1)))
-    #     if self.config.regressors:
-    #         future = pd.merge(
-    #             future,
-    #             df_futur.rename(columns={temporal_column: "ds"}),
-    #             on="ds",
-    #             how="left",
-    #         )
-
-    #     forecast = self.model.predict(future)
-
-    #     if verbose:
-    #         self.model.plot_components(forecast)
-
-    #     forecast.rename(
-    #         columns={
-    #             "ds": temporal_column,
-    #             "yhat": target_column + "_pred",
-    #             "yhat_lower": target_column + "_pred_lower",
-    #             "yhat_upper": target_column + "_pred_upper",
-    #         },
-    #         inplace=True,
-    #     )
-
-    #     return forecast
 
 def _build_cluster_model(
     config: dict,
     random_state: int,
     base_params: dict,
     extra_params: dict,
-) -> Pipeline:
-
-    ph_model = ProphetModel(
+) -> ProphetModel:
+    _ = base_params
+    return ProphetModel(
         config=config,
         random_state=random_state,
         params=base_params,
         extra_params=extra_params,
     )
-
-    pipeline = Pipeline(steps=[
-        ("passthrough", "passthrough"),
-        ("model", ph_model)
-    ]) 
-
-    return pipeline

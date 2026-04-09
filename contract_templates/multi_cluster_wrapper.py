@@ -106,6 +106,13 @@ class MultiClusterWrapper(BaseEstimator, RegressorMixin):
             self.base_params,
             self.extra_params,
         )
+        # Optional hook for models that need cluster-aware runtime config.
+        if hasattr(model, "set_cluster_key"):
+            model.set_cluster_key(key)
+        elif hasattr(model, "named_steps"):
+            maybe_step_model = model.named_steps.get("model")
+            if hasattr(maybe_step_model, "set_cluster_key"):
+                maybe_step_model.set_cluster_key(key)
         model.fit(X, y)
         logger.info(f"Finished fitting cluster: {key}")
         return key, model

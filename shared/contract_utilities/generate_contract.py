@@ -336,6 +336,65 @@ def generate_ibnr_contract(
     return
 
 
+def generate_inflation_contract(
+    model_contract_path: str | os.PathLike[str],
+    clusters: list[dict[str, Any]],
+    temporal_reference_column: str,
+    segment_column: str,
+    random_state: int,
+    n_jobs: int,
+    relative_path: str,
+) -> dict[str, Any]:
+    cluster_model_config_map: dict[str, dict[str, Any]] = {}
+    regressors: set[str] = set()
+
+    for cluster in clusters:
+        raw_cluster_id = cluster.get(segment_column, cluster.get("cluster_id"))
+        if raw_cluster_id is None:
+            continue
+        cluster_id = str(raw_cluster_id)
+
+        model_cfg = cluster.get("model_config", {})
+        if not isinstance(model_cfg, dict):
+            model_cfg = {}
+        cluster_model_config_map[cluster_id] = model_cfg
+
+        maybe_regressors = model_cfg.get("regressors")
+        if isinstance(maybe_regressors, dict):
+            regressors.update(str(k) for k in maybe_regressors.keys())
+
+    default_model_config = next(iter(cluster_model_config_map.values()), {})
+    feature_columns = [temporal_reference_column] + sorted(regressors) + [segment_column]
+
+    generate_model_contract(
+        output_folder=Path(model_contract_path) / "training/model",
+        model_type="prophet",
+        numerical_features=feature_columns,
+        segment_columns=[segment_column],
+        config={
+            "default_model_config": default_model_config,
+            "cluster_model_config_map": cluster_model_config_map,
+        },
+        random_state=random_state,
+        base_params={"random_state": random_state},
+        extra_params={
+            "random_state": random_state,
+            "feature_columns": feature_columns,
+            "temporal_reference_column": temporal_reference_column,
+            "segment_column": segment_column,
+        },
+        n_jobs=n_jobs,
+        relative_path=relative_path,
+    )
+
+    return {
+        "feature_columns": feature_columns,
+        "segment_columns": [segment_column],
+        "regressor_columns": sorted(regressors),
+        "cluster_model_config_map": cluster_model_config_map,
+    }
+
+
 def _build_factory_resource_content(model_name: str) -> str:
     workspace_files = "${var.workspace_name}/${bundle.name}/${bundle.target}/files"
     experiment_name = f"/Users/${{workspace.current_user.userName}}/${{bundle.target}}-{model_name}_exp"
@@ -363,6 +422,7 @@ resources:
               - "lightgbm==4.3.0"
               - "mlflow==3.0.1"
               - "neuralprophet==0.8.0"
+              - "prophet==1.1.6"
               - "numpy==1.26.4"
               - "optuna==3.6.0"
               - "optuna-integration==3.6.0"
@@ -498,6 +558,10 @@ resources:
                 package: mlflow==3.0.1
             - pypi:
                 package: pandas==2.3.3
+            - pypi:
+                package: scikit-learn==1.6.1
+            - pypi:
+                package: prophet==1.1.6
             - pypi:
                 package: PyYAML
           spark_python_task:
