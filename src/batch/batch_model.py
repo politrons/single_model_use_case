@@ -58,6 +58,7 @@ class Config:
     output_table: str
     training_data_config: dict[str, Any]
     split_config: dict[str, Any]
+    model_contract: str = ""
     experiment_name: str = ""
     model_uri: str = ""
     model_alias: str = "champion"
@@ -302,6 +303,7 @@ def _parse_args(argv: list[str]) -> Config:
     ap.add_argument("--experiment_name", default="")
     ap.add_argument("--model_uri", default="")
     ap.add_argument("--model_alias", default="champion")
+    ap.add_argument("--model_contract", default="")
     ap.add_argument("--training_data_config", required=True)
     ap.add_argument("--split_config", required=True)
     args = ap.parse_args(argv)
@@ -314,6 +316,7 @@ def _parse_args(argv: list[str]) -> Config:
         experiment_name=args.experiment_name,
         model_uri=args.model_uri,
         model_alias=args.model_alias,
+        model_contract=(args.model_contract or "").strip(),
         training_data_config=YamlUtils.yaml_to_dict((args.training_data_config or "").strip()),
         split_config=YamlUtils.yaml_to_dict((args.split_config or "").strip()),
     )

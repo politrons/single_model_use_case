@@ -24,6 +24,7 @@ generate_model_contract(
 """
 
 import os
+from pathlib import Path
 from typing import Any
 
 # ---------------------------------------------------------------------------
@@ -333,6 +334,209 @@ def generate_ibnr_contract(
     )
 
     return
-    
-    
 
+
+def _build_factory_resource_content(model_name: str) -> str:
+    workspace_files = "${var.workspace_name}/${bundle.name}/${bundle.target}/files"
+    experiment_name = f"/Users/${{workspace.current_user.userName}}/${{bundle.target}}-{model_name}_exp"
+    model_uc_name = f"${{var.catalog_name}}.${{bundle.name}}.{model_name}"
+    configs_root = f"{workspace_files}/configs/{model_name}"
+    contract_path = f"{workspace_files}/contracts/{model_name}/training/model/model_contract_impl.py"
+    metrics_table = f"${{var.catalog_name}}.${{bundle.name}}.{model_name}_metrics"
+    baseline_table = f"${{var.catalog_name}}.${{bundle.name}}.{model_name}_baseline"
+
+    return f"""common_permissions: &permissions
+  permissions:
+    - level: CAN_MANAGE
+      group_name: users
+
+resources:
+  jobs:
+    {model_name}-factory-job:
+      name: ${{bundle.target}}-${{bundle.name}}-{model_name}-factory-job
+      environments:
+        - environment_key: serverless_default
+          spec:
+            environment_version: "4"
+            dependencies:
+              - "imbalanced-learn==0.14.0"
+              - "lightgbm==4.3.0"
+              - "mlflow==3.0.1"
+              - "neuralprophet==0.8.0"
+              - "numpy==1.26.4"
+              - "optuna==3.6.0"
+              - "optuna-integration==3.6.0"
+              - "pandas==2.3.3"
+              - "ray[all]"
+              - "scikit-learn==1.6.1"
+              - "scipy==1.16.3"
+              - "torch==2.5.1"
+              - "tensorflow==2.17.0"
+              - "xgboost==2.1.4"
+              - "pyspark"
+              - "PyYAML"
+              - "pytz~=2022.2.1"
+              - "databricks-sdk>=0.57"
+              - "databricks-feature-engineering==0.12.1"
+              - "azure-keyvault==4.2.0"
+              - "shap==0.46.0"
+      tasks:
+        - task_key: Training
+          environment_key: serverless_default
+          spark_python_task:
+            python_file: "{workspace_files}/src/training/train_model.py"
+            source: WORKSPACE
+            parameters:
+              - "--env"
+              - "${{bundle.target}}"
+              - "--experiment_name"
+              - "{experiment_name}"
+              - "--model_name"
+              - "{model_uc_name}"
+              - "--catalog_name"
+              - "${{var.catalog_name}}"
+              - "--training_data_config"
+              - "{configs_root}/training_data_config.yml"
+              - "--model_config"
+              - "{configs_root}/model_config.yml"
+              - "--model_contract"
+              - "{contract_path}"
+              - "--split_config"
+              - "{configs_root}/split_config.yml"
+              - "--metrics_latency_table"
+              - "{metrics_table}"
+              - "--validation_config"
+              - "{configs_root}/validation_config.yml"
+              - "--baseline_table_name"
+              - "{baseline_table}"
+        - task_key: Validation
+          environment_key: serverless_default
+          depends_on:
+            - task_key: Training
+          spark_python_task:
+            python_file: "{workspace_files}/src/validation/validate_model.py"
+            source: WORKSPACE
+            parameters:
+              - "--env"
+              - "${{bundle.target}}"
+              - "--dependency_task_key"
+              - "Training"
+              - "--catalog_name"
+              - "${{var.catalog_name}}"
+              - "--model_name"
+              - "{model_uc_name}"
+              - "--experiment_name"
+              - "{experiment_name}"
+              - "--training_data_config"
+              - "{configs_root}/training_data_config.yml"
+              - "--model_config"
+              - "{configs_root}/model_config.yml"
+              - "--validation_config"
+              - "{configs_root}/validation_config.yml"
+              - "--eval_result_config"
+              - "{configs_root}/eval_result_config.yml"
+              - "--split_config"
+              - "{configs_root}/split_config.yml"
+              - "--metrics_table"
+              - "{metrics_table}"
+        - task_key: Deployment
+          environment_key: serverless_default
+          depends_on:
+            - task_key: Validation
+          spark_python_task:
+            python_file: "{workspace_files}/src/deployment/deploy_model.py"
+            source: WORKSPACE
+            parameters:
+              - "--env"
+              - "${{bundle.target}}"
+      <<: *permissions
+"""
+
+
+def _build_batch_resource_content(model_name: str) -> str:
+    workspace_files = "${var.workspace_name}/${bundle.name}/${bundle.target}/files"
+    experiment_name = f"/Users/${{workspace.current_user.userName}}/${{bundle.target}}-{model_name}_exp"
+    model_uc_name = f"${{var.catalog_name}}.${{bundle.name}}.{model_name}"
+    configs_root = f"{workspace_files}/configs/{model_name}"
+    contract_path = f"{workspace_files}/contracts/{model_name}/training/model/model_contract_impl.py"
+    output_table = f"${{var.catalog_name}}.${{bundle.name}}.{model_name}_batch_predictions"
+
+    return f"""common_permissions: &permissions
+  permissions:
+    - level: CAN_MANAGE
+      group_name: users
+
+resources:
+  jobs:
+    {model_name}-batch-job:
+      name: ${{bundle.target}}-${{bundle.name}}-{model_name}-batch-job
+      job_clusters:
+        - job_cluster_key: Job_cluster
+          new_cluster:
+            spark_version: 16.4.x-scala2.12
+            instance_pool_id: ${{var.instance_pool_id}}
+            driver_instance_pool_id: ${{var.instance_pool_id}}
+            policy_id: ${{var.policy_id}}
+            custom_tags:
+              local-dbx-OpsTeam: CDAO ML Engineering
+              local-dbx-opco: ${{var.load_dbx_opco}}
+              local-dbx-env: ${{var.job_cluster_env}}
+              local-dbx-domain: CDAO
+            data_security_mode: SINGLE_USER
+            runtime_engine: STANDARD
+            kind: CLASSIC_PREVIEW
+            use_ml_runtime: true
+            is_single_node: false
+            autoscale:
+              min_workers: 1
+              max_workers: 2
+      tasks:
+        - task_key: Batch
+          job_cluster_key: Job_cluster
+          libraries:
+            - pypi:
+                package: mlflow==3.0.1
+            - pypi:
+                package: pandas==2.3.3
+            - pypi:
+                package: PyYAML
+          spark_python_task:
+            python_file: "{workspace_files}/src/batch/batch_model.py"
+            source: WORKSPACE
+            parameters:
+              - "--env"
+              - "${{bundle.target}}"
+              - "--catalog_name"
+              - "${{var.catalog_name}}"
+              - "--model_name"
+              - "{model_uc_name}"
+              - "--experiment_name"
+              - "{experiment_name}"
+              - "--model_alias"
+              - "champion"
+              - "--training_data_config"
+              - "{configs_root}/training_data_config.yml"
+              - "--split_config"
+              - "{configs_root}/split_config.yml"
+              - "--model_contract"
+              - "{contract_path}"
+              - "--output_table"
+              - "{output_table}"
+      <<: *permissions
+"""
+
+
+def generate_factory_and_batch_resources(
+    resources_path: str | os.PathLike[str],
+    model_name: str,
+) -> tuple[Path, Path]:
+    resources_dir = Path(resources_path)
+    resources_dir.mkdir(parents=True, exist_ok=True)
+
+    factory_path = resources_dir / f"factory-{model_name}-resource.yml"
+    batch_path = resources_dir / f"batch-{model_name}-resource.yml"
+
+    factory_path.write_text(_build_factory_resource_content(model_name), encoding="utf-8")
+    batch_path.write_text(_build_batch_resource_content(model_name), encoding="utf-8")
+
+    return factory_path, batch_path

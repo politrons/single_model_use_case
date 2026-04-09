@@ -54,6 +54,8 @@ resources:
               - "${var.workspace_name}/${bundle.name}/${bundle.target}/files/configs/model_use_case_1/training_data_config.yml"
               - "--model_config"
               - "${var.workspace_name}/${bundle.name}/${bundle.target}/files/configs/model_use_case_1/model_config.yml"
+              - "--model_contract"
+              - "${var.workspace_name}/${bundle.name}/${bundle.target}/files/contracts/model_use_case_1/training/model/model_contract_impl.py"
               - "--split_config"
               - "${var.workspace_name}/${bundle.name}/${bundle.target}/files/configs/model_use_case_1/split_config.yml"
               - "--metrics_latency_table"

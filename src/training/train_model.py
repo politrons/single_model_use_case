@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import inspect
 import json
 import logging
@@ -36,7 +37,6 @@ if "databricks_mlops_stack" not in sys.modules:
 
 from databricks_mlops_stack.training.data.training_data_config import TrainingDataConfig  # type: ignore # noqa
 from databricks_mlops_stack.training.model.model_config import ModelContractConfig  # type: ignore # noqa
-from databricks_mlops_stack.training.model.prophet_model import ProphetModelImpl  # type: ignore # noqa
 
 from databricks_mlops_stack.training.model.predict_and_proba_wrapper import (  # type: ignore # noqa
     PredictAndProbaWrapper,
@@ -94,6 +94,7 @@ class Config:
     training_data_config: dict[str, Any]
     model_config: dict[str, Any]
     model_card_path: str
+    model_contract: str = ""
     metrics_latency_table: str = ""
     quality_monitor_config: dict[str, Any] = field(default_factory=dict)
     validation_config: dict[str, Any] = field(default_factory=dict)
@@ -188,8 +189,35 @@ def _split_predict_output(raw_output: Any) -> tuple[Any, Any | None]:
     return raw_output, None
 
 
-def _load_model_impl(cfg):
-    LOG.info("Loading model from config....")
+def _load_model_impl_from_contract(path: str) -> Any:
+    contract_path = Path(path).expanduser().resolve()
+    if not contract_path.is_file():
+        raise FileNotFoundError(f"Model contract file not found: {contract_path}")
+
+    module_name = f"generated_model_contract_{abs(hash(str(contract_path)))}"
+    spec = importlib.util.spec_from_file_location(module_name, contract_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Could not create module spec from {contract_path}")
+
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+
+    build = getattr(module, "build", None)
+    if build is None:
+        raise AttributeError(f"Generated contract module '{contract_path}' does not expose 'build'")
+    if not hasattr(build, "get_model"):
+        raise AttributeError(f"Generated contract build object '{contract_path}' has no 'get_model'")
+    if not hasattr(build, "log_model"):
+        raise AttributeError(f"Generated contract build object '{contract_path}' has no 'log_model'")
+    return build
+
+
+def _load_model_impl(cfg: Config) -> Any:
+    if (cfg.model_contract or "").strip():
+        LOG.info("Loading model contract from generated file: %s", cfg.model_contract)
+        return _load_model_impl_from_contract(cfg.model_contract)
+    LOG.info("Loading model from default model config implementation....")
     return ModelContractConfig()
 
 
@@ -309,10 +337,11 @@ def _append_latency_metrics(
 def _register_model(cfg: Config,
                     input_example,
                     model,
-                    prophet_model: ProphetModelImpl,
+                    model_impl: Any,
                     predict_ms: float,
                     signature: ModelSignature,
-                    train_ms: float) -> str:
+                    train_ms: float,
+                    model_args: dict[str, Any]) -> str:
     with mlflow.start_run(run_name=f"train_{cfg.env}") as run:
         run_id = run.info.run_id
         mlflow.log_param("env", cfg.env)
@@ -320,7 +349,7 @@ def _register_model(cfg: Config,
         mlflow.log_metric("train_time_ms", float(train_ms))
         mlflow.log_metric("predict_time_ms", float(predict_ms))
         mlflow.log_params(get_non_default_pipeline_params(_model_for_param_logging(model)))
-        prophet_model.log_model(model, cfg.model_name, signature, input_example)
+        model_impl.log_model(model, cfg.model_name, signature, input_example, model_args)
     return run_id
 
 
@@ -495,8 +524,8 @@ def run_template(cfg: Config) -> tuple[str, int, float, float]:
     _model_call_args[CONFIG_DEFAULT_CATALOG_NAME] = cfg.catalog_name
     _model_call_args[CONFIG_ENV] = cfg.env
 
-    prophet_model = ProphetModelImpl()
-    model = prophet_model.get_model()
+    model_impl = _load_model_impl(cfg)
+    model = model_impl.get_model(_model_call_args)
     model, train_ms = _time_fit(
         model=model,
         X=all_split_set[X_TRAIN],
@@ -511,7 +540,16 @@ def run_template(cfg: Config) -> tuple[str, int, float, float]:
 
     # Log & register
     mlflow.end_run()
-    run_id = _register_model(cfg, input_example, model, prophet_model, predict_ms, signature, train_ms)
+    run_id = _register_model(
+        cfg=cfg,
+        input_example=input_example,
+        model=model,
+        model_impl=model_impl,
+        predict_ms=predict_ms,
+        signature=signature,
+        train_ms=train_ms,
+        model_args=_model_call_args,
+    )
 
     _register_model_card(cfg)
 
@@ -541,6 +579,7 @@ def _parse_args(argv: list[str]) -> Config:
     ap.add_argument("--databricks_mlops_stack_version", default="")
     ap.add_argument("--training_data_config")
     ap.add_argument("--model_config")
+    ap.add_argument("--model_contract", default="")
     ap.add_argument("--model_tuning_config")
     ap.add_argument("--model_card_path", default="")
     ap.add_argument("--metrics_latency_table", default="")
@@ -574,6 +613,7 @@ def _parse_args(argv: list[str]) -> Config:
                     training_data_config=training_data_config,
                     model_config=model_config,
                     model_card_path=args.model_card_path,
+                    model_contract=(args.model_contract or "").strip(),
                     split_config=YamlUtils.yaml_to_dict(split_config_str) if split_config_str else {},
                     metrics_latency_table=args.metrics_latency_table.strip(),
                     quality_monitor_config=YamlUtils.yaml_to_dict(quality_monitor_config_str) if quality_monitor_config_str else {},
