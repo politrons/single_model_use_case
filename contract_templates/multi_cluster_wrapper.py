@@ -180,7 +180,7 @@ class MultiClusterWrapper(BaseEstimator, RegressorMixin):
         # none rely on a persistent Keras session after fit() completes.
         if self.is_tensorflow:
             try:
-                from tensorflow import keras
+                from tensorflow import keras  # type: ignore[import-untyped]
                 keras.backend.clear_session()
                 logger.info("Keras backend session cleared after fitting.")
             except Exception as exc:  # noqa: BLE001
@@ -229,7 +229,7 @@ class MultiClusterWrapper(BaseEstimator, RegressorMixin):
         # TF-specific: ensure graph mode is active to reduce retracing.
         if self.is_tensorflow:
             try:
-                import tensorflow as tf
+                import tensorflow as tf  # type: ignore[import-untyped]
                 tf.config.run_functions_eagerly(False)
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Could not set TF eager mode: %s", exc)
@@ -238,7 +238,7 @@ class MultiClusterWrapper(BaseEstimator, RegressorMixin):
         predictions = pd.Series(index=df.index, dtype=float)
 
         if self.is_tensorflow:
-            import tensorflow as tf
+            import tensorflow as tf  # type: ignore[import-untyped]
 
         for key, group in df.groupby(self.segment_columns, sort=False):
             seg_key = self._cluster_key(key)
@@ -273,7 +273,7 @@ class MultiClusterWrapper(BaseEstimator, RegressorMixin):
             named_steps = getattr(maybe_estimator, "named_steps", None)
             if isinstance(named_steps, dict):
                 step_model = named_steps.get("model")
-                if hasattr(step_model, "prepare_for_serialization"):
+                if step_model is not None and hasattr(step_model, "prepare_for_serialization"):
                     try:
                         step_model.prepare_for_serialization()
                     except Exception:
@@ -285,7 +285,7 @@ class MultiClusterWrapper(BaseEstimator, RegressorMixin):
                 nested_steps = getattr(nested, "named_steps", None)
                 if isinstance(nested_steps, dict):
                     nested_model = nested_steps.get("model")
-                    if hasattr(nested_model, "prepare_for_serialization"):
+                    if nested_model is not None and hasattr(nested_model, "prepare_for_serialization"):
                         try:
                             nested_model.prepare_for_serialization()
                         except Exception:

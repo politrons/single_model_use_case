@@ -125,4 +125,8 @@ def test_generate_inflation_contract_creates_model_contract_file(tmp_path):
     assert "from prophet import Prophet" in content
     assert "cluster_model_config_map" in content
     assert "default_model_config" in content
+    assert "from tensorflow import keras  # type: ignore[import-untyped]" in content
+    assert "import tensorflow as tf  # type: ignore[import-untyped]" in content
+    assert 'if step_model is not None and hasattr(step_model, "prepare_for_serialization"):' in content
+    assert 'if nested_model is not None and hasattr(nested_model, "prepare_for_serialization"):' in content
     assert set(result["feature_columns"]) == {"YearMonthDate", "price_CPI", "cluster_id"}
