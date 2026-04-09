@@ -540,3 +540,47 @@ def generate_factory_and_batch_resources(
     batch_path.write_text(_build_batch_resource_content(model_name), encoding="utf-8")
 
     return factory_path, batch_path
+
+
+def update_bundle_include(
+    bundle_file_path: str | os.PathLike[str],
+    resource_paths: list[str | os.PathLike[str]],
+) -> list[str]:
+    """Replace databricks.yml include entries with the provided resource files."""
+    bundle_path = Path(bundle_file_path)
+    text = bundle_path.read_text(encoding="utf-8")
+    lines = text.splitlines(keepends=True)
+
+    include_entries = [f"./resources/{Path(p).name}" for p in resource_paths]
+    include_entries = sorted(dict.fromkeys(include_entries))
+    include_block = ["include:\n"] + [f"  - {entry}\n" for entry in include_entries]
+
+    include_idx = None
+    for i, line in enumerate(lines):
+        if line.strip() == "include:":
+            include_idx = i
+            break
+
+    if include_idx is None:
+        insert_at = len(lines)
+        for i, line in enumerate(lines):
+            if line.strip().startswith("targets:"):
+                insert_at = i
+                break
+        if insert_at > 0 and lines[insert_at - 1].strip() != "":
+            include_block = ["\n"] + include_block
+        lines[insert_at:insert_at] = include_block
+    else:
+        include_indent = len(lines[include_idx]) - len(lines[include_idx].lstrip(" "))
+        end_idx = include_idx + 1
+        while end_idx < len(lines):
+            current = lines[end_idx]
+            stripped = current.strip()
+            current_indent = len(current) - len(current.lstrip(" "))
+            if stripped and current_indent <= include_indent and not stripped.startswith("-"):
+                break
+            end_idx += 1
+        lines[include_idx:end_idx] = include_block
+
+    bundle_path.write_text("".join(lines), encoding="utf-8")
+    return include_entries
