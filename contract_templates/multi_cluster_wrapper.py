@@ -261,3 +261,33 @@ class MultiClusterWrapper(BaseEstimator, RegressorMixin):
 
         # Restore original row order
         return predictions.loc[df.index].values 
+
+    def compact_for_serialization(self) -> None:
+        """Best-effort memory compaction before pickling/logging."""
+        for maybe_estimator in self.models_.values():
+            if hasattr(maybe_estimator, "prepare_for_serialization"):
+                try:
+                    maybe_estimator.prepare_for_serialization()
+                except Exception:
+                    pass
+            named_steps = getattr(maybe_estimator, "named_steps", None)
+            if isinstance(named_steps, dict):
+                step_model = named_steps.get("model")
+                if hasattr(step_model, "prepare_for_serialization"):
+                    try:
+                        step_model.prepare_for_serialization()
+                    except Exception:
+                        pass
+            for nested_attr in ("regressor", "regressor_", "estimator", "estimator_"):
+                nested = getattr(maybe_estimator, nested_attr, None)
+                if nested is None:
+                    continue
+                nested_steps = getattr(nested, "named_steps", None)
+                if isinstance(nested_steps, dict):
+                    nested_model = nested_steps.get("model")
+                    if hasattr(nested_model, "prepare_for_serialization"):
+                        try:
+                            nested_model.prepare_for_serialization()
+                        except Exception:
+                            pass
+        gc.collect()

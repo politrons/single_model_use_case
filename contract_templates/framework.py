@@ -55,6 +55,12 @@ class ModelContractImpl(ModelContract):
         input_example,
         args: dict[str, Any],
     ):
+        if hasattr(model, "compact_for_serialization"):
+            try:
+                model.compact_for_serialization()
+            except Exception:
+                pass
+        gc.collect()
         mlflow.sklearn.log_model(
             model,
             artifact_path="model",

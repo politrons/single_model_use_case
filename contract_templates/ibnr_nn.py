@@ -421,6 +421,16 @@ class TFBaseModel(BaseEstimator):
             raw_preds = self.model.predict(model_input, verbose=0)
         return self._to_numpy_output(raw_preds)
 
+    def prepare_for_serialization(self) -> None:
+        """Drop training-only state and keep inference-ready network weights."""
+        self.history = None
+        try:
+            cloned = tf.keras.models.clone_model(self.model)
+            cloned.set_weights(self.model.get_weights())
+            self.model = cloned
+        except Exception as error:
+            logger.info(f"Could not compact keras model for serialization: {error}")
+
     @staticmethod
     def _to_model_input(
             X: pd.DataFrame | np.ndarray | Any,
