@@ -96,8 +96,8 @@ class MultiClusterWrapper(BaseEstimator, RegressorMixin):
     def _fit_one_cluster(
         self,
         key: tuple,
-        X: np.ndarray,
-        y: np.ndarray,
+        X: pd.DataFrame,
+        y: pd.Series,
     ) -> tuple[tuple, Any]:
         """Build and fit a single cluster model; designed for parallel use."""
         model = self.model_factory(
@@ -165,8 +165,8 @@ class MultiClusterWrapper(BaseEstimator, RegressorMixin):
         )(
             delayed(self._fit_one_cluster)(
                 self._cluster_key(key),
-                group[self.numerical_features].values,
-                target.loc[group.index].values,
+                group[self.numerical_features],
+                target.loc[group.index],
             )
             for key, group in groups
         )
@@ -249,7 +249,7 @@ class MultiClusterWrapper(BaseEstimator, RegressorMixin):
                     "Cannot generate predictions for unseen clusters."
                 )
 
-            X = group[self.numerical_features].values
+            X = group[self.numerical_features]
 
             preds = self.models_[seg_key].predict(X)
             predictions.loc[group.index] = preds
