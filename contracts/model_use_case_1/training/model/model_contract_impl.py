@@ -2,7 +2,7 @@
 
 import gc
 import logging
-from collections.abc import Callable   # type: ignore # noqa
+from collections.abc import Callable  # type: ignore # noqa
 from typing import Any
 import numpy as np  # type: ignore # noqa
 import pandas as pd  # type: ignore # noqa
@@ -70,16 +70,16 @@ class MultiClusterWrapper(BaseEstimator, RegressorMixin):
     """
 
     def __init__(
-        self,
-        numerical_features: list[str],
-        segment_columns: list[str],
-        model_factory: Callable,
-        is_tensorflow: bool,
-        config: dict,
-        random_state: int,
-        base_params: dict,
-        extra_params: dict,
-        n_jobs: int,
+            self,
+            numerical_features: list[str],
+            segment_columns: list[str],
+            model_factory: Callable,
+            is_tensorflow: bool,
+            config: dict,
+            random_state: int,
+            base_params: dict,
+            extra_params: dict,
+            n_jobs: int,
     ):
         self.numerical_features = numerical_features or []
         self.segment_columns = segment_columns or []
@@ -106,10 +106,10 @@ class MultiClusterWrapper(BaseEstimator, RegressorMixin):
         return key if isinstance(key, tuple) else (key,)
 
     def _fit_one_cluster(
-        self,
-        key: tuple,
-        X: np.ndarray,
-        y: np.ndarray,
+            self,
+            key: tuple,
+            X: np.ndarray,
+            y: np.ndarray,
     ) -> tuple[tuple, Any]:
         """Build and fit a single cluster model; designed for parallel use."""
         model = self.model_factory(
@@ -118,6 +118,13 @@ class MultiClusterWrapper(BaseEstimator, RegressorMixin):
             self.base_params,
             self.extra_params,
         )
+        # Optional hook for models that need cluster-aware runtime config.
+        if hasattr(model, "set_cluster_key"):
+            model.set_cluster_key(key)
+        elif hasattr(model, "named_steps"):
+            maybe_step_model = model.named_steps.get("model")
+            if hasattr(maybe_step_model, "set_cluster_key"):
+                maybe_step_model.set_cluster_key(key)
         model.fit(X, y)
         logger.info(f"Finished fitting cluster: {key}")
         return key, model
@@ -185,7 +192,7 @@ class MultiClusterWrapper(BaseEstimator, RegressorMixin):
         # none rely on a persistent Keras session after fit() completes.
         if self.is_tensorflow:
             try:
-                from tensorflow import keras
+                from tensorflow import keras  # type: ignore[import-untyped]
                 keras.backend.clear_session()
                 logger.info("Keras backend session cleared after fitting.")
             except Exception as exc:  # noqa: BLE001
@@ -234,7 +241,7 @@ class MultiClusterWrapper(BaseEstimator, RegressorMixin):
         # TF-specific: ensure graph mode is active to reduce retracing.
         if self.is_tensorflow:
             try:
-                import tensorflow as tf
+                import tensorflow as tf  # type: ignore[import-untyped]
                 tf.config.run_functions_eagerly(False)
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Could not set TF eager mode: %s", exc)
@@ -243,7 +250,7 @@ class MultiClusterWrapper(BaseEstimator, RegressorMixin):
         predictions = pd.Series(index=df.index, dtype=float)
 
         if self.is_tensorflow:
-            import tensorflow as tf
+            import tensorflow as tf  # type: ignore[import-untyped]
 
         for key, group in df.groupby(self.segment_columns, sort=False):
             seg_key = self._cluster_key(key)
@@ -267,39 +274,69 @@ class MultiClusterWrapper(BaseEstimator, RegressorMixin):
         # Restore original row order
         return predictions.loc[df.index].values
 
+    def compact_for_serialization(self) -> None:
+        """Best-effort memory compaction before pickling/logging."""
+        for maybe_estimator in self.models_.values():
+            if hasattr(maybe_estimator, "prepare_for_serialization"):
+                try:
+                    maybe_estimator.prepare_for_serialization()
+                except Exception:
+                    pass
+            named_steps = getattr(maybe_estimator, "named_steps", None)
+            if isinstance(named_steps, dict):
+                step_model = named_steps.get("model")
+                if step_model is not None and hasattr(step_model, "prepare_for_serialization"):
+                    try:
+                        step_model.prepare_for_serialization()
+                    except Exception:
+                        pass
+            for nested_attr in ("regressor", "regressor_", "estimator", "estimator_"):
+                nested = getattr(maybe_estimator, nested_attr, None)
+                if nested is None:
+                    continue
+                nested_steps = getattr(nested, "named_steps", None)
+                if isinstance(nested_steps, dict):
+                    nested_model = nested_steps.get("model")
+                    if nested_model is not None and hasattr(nested_model, "prepare_for_serialization"):
+                        try:
+                            nested_model.prepare_for_serialization()
+                        except Exception:
+                            pass
+        gc.collect()
+
 
 # ────────────────────────────────────────────────────────────────────
 # Inlined from ibnr_nn.py
 # ────────────────────────────────────────────────────────────────────
 logger = logging.getLogger(__name__)
 
-CONFIG_BUILDING_BLOCKS= "building_blocks"
-CONFIG_ARCHITECTURE= "architecture"
-CONFIG_LOSS= "loss"
-CONFIG_OPTIMIZER= "optimizer"
-CONFIG_EPOCHS= "epochs" # also used in neuralprophet
-CONFIG_BATCH_SIZE= "batch_size" # also used in neuralprophet
-CONFIG_BLOCK= "block"
-CONFIG_BLOCK_NAME= "name"
-CONFIG_BLOCK_COMPOSITE_LAYERS= "composite_layers"
-CONFIG_BLOCK_OVERRIDE= "overrides"
-CONFIG_LAYER= "layer"
-CONFIG_LAYER_NAME= "name"
-CONFIG_LAYER_TYPE= "type"
-CONFIG_OPTIMISE_THRESHOLD= "optimise_threshold"
-CONFIG_METRIC_CLASS= "type"
-CONFIG_SCORING_CLASS= "type"
-CONFIG_LOSS_CLASS= "type"
-CONFIG_OPTIMIZER_CLASS= "type"
-CONFIG_EVAL_METRIC= "eval_metric"
-CONFIG_SCORING= "scoring"
+CONFIG_BUILDING_BLOCKS = "building_blocks"
+CONFIG_ARCHITECTURE = "architecture"
+CONFIG_LOSS = "loss"
+CONFIG_OPTIMIZER = "optimizer"
+CONFIG_EPOCHS = "epochs"  # also used in neuralprophet
+CONFIG_BATCH_SIZE = "batch_size"  # also used in neuralprophet
+CONFIG_BLOCK = "block"
+CONFIG_BLOCK_NAME = "name"
+CONFIG_BLOCK_COMPOSITE_LAYERS = "composite_layers"
+CONFIG_BLOCK_OVERRIDE = "overrides"
+CONFIG_LAYER = "layer"
+CONFIG_LAYER_NAME = "name"
+CONFIG_LAYER_TYPE = "type"
+CONFIG_OPTIMISE_THRESHOLD = "optimise_threshold"
+CONFIG_METRIC_CLASS = "type"
+CONFIG_SCORING_CLASS = "type"
+CONFIG_LOSS_CLASS = "type"
+CONFIG_OPTIMIZER_CLASS = "type"
+CONFIG_EVAL_METRIC = "eval_metric"
+CONFIG_SCORING = "scoring"
 OPTIMIZER_ADAM = 'adam'
 CONFIG_EVAL_SET = 'eval_set'
 TF_PATIENCE = "patience"
 TF_MIN_DELTA = "min_delta"
 
-def get_metric_info(function_name: str,) -> dict[str, Any]:
 
+def get_metric_info(function_name: str, ) -> dict[str, Any]:
     availables = {
         'mean_squared_error': {'greater_is_better': False},
         'r2_score': {'greater_is_better': True},
@@ -307,6 +344,7 @@ def get_metric_info(function_name: str,) -> dict[str, Any]:
     }
 
     return availables[function_name]
+
 
 # -----------------------------------------------------------------------------
 # Catalogs
@@ -323,7 +361,8 @@ AVAILABLE_TF_LOSSES = {
     'huber': losses.Huber,
 }
 
-AVAILABLE_TF_METRICS = { # flexibility: although string is used for either loss or metric, when importing use the right class
+AVAILABLE_TF_METRICS = {
+    # flexibility: although string is used for either loss or metric, when importing use the right class
     'mean_squared_error': metrics.MeanSquaredError,
     'r2_score': metrics.R2Score,
     'r2': metrics.R2Score,
@@ -338,6 +377,7 @@ AVAILABLE_LAYERS = {
 
 _DEFAULT_BINARY_CLASSIFICATION_THRESHOLD = 0.5
 
+
 # ---------------------------------------------------------------------------
 # 1. TFBaseModel
 # ---------------------------------------------------------------------------
@@ -346,12 +386,13 @@ class TFBaseModel(BaseEstimator):
     """
     Base class for TensorFlow models compatible with scikit-learn.
     """
+
     def __init__(
-        self,
-        config: dict[str, Any],
-        random_state: int,
-        params: dict,
-        extra_params: dict,
+            self,
+            config: dict[str, Any],
+            random_state: int,
+            params: dict,
+            extra_params: dict,
     ) -> None:
 
         self.config: dict[str, Any] = config
@@ -390,7 +431,7 @@ class TFBaseModel(BaseEstimator):
         for transformer in self.extra_params.get('all_feature_transformers', []):
             if transformer in ['onehotencoder']:
                 raise ValueError(f"Currently the transformer {transformer} is not supported for TensorFlow models")
-            
+
         if self.extra_params.get('has_hyper_search', False):
             raise ValueError("Currently hyperparam search is not supported for TensorFlow models")
 
@@ -401,7 +442,7 @@ class TFBaseModel(BaseEstimator):
 
     def _resolve_blocks(
             self,
-        ) -> dict[str, list[dict[str, Any]]]:
+    ) -> dict[str, list[dict[str, Any]]]:
         """
         Parse building_blocks into a dict of name to list of layer configs.
         """
@@ -413,14 +454,14 @@ class TFBaseModel(BaseEstimator):
                 raise ValueError(f"Duplicate block {CONFIG_BLOCK_NAME}: {name}")
             blocks[name] = block[CONFIG_BLOCK_COMPOSITE_LAYERS]
         return blocks
-    
+
     def _resolve_layer(
             self,
             added_layers: int,
             layer_config: dict[str, Any],
             override_config: dict[str, Any] | None = None,
             maybe_prefix_name: str | None = None,
-        ) -> layers.Layer:
+    ) -> layers.Layer:
 
         layer_class_name = layer_config.get(CONFIG_LAYER_TYPE)
         if not layer_class_name:
@@ -450,7 +491,7 @@ class TFBaseModel(BaseEstimator):
 
     def _resolve_hidden_layers(
             self,
-        ) -> list[layers.Layer]:
+    ) -> list[layers.Layer]:
         """
         Build the list of hidden layers based on architecture config.
         """
@@ -486,13 +527,13 @@ class TFBaseModel(BaseEstimator):
                 raise ValueError(f"Architecture item must have '{CONFIG_BLOCK}' or '{CONFIG_LAYER}'")
 
         return hidden_layers
-    
+
     def _resolve_metrics(self) -> None:
 
         def _parse_eval(
                 eval_subsection: dict,
                 subsection_name: str,
-            ) -> tuple[str, dict]:
+        ) -> tuple[str, dict]:
             class_name = eval_subsection.get(subsection_name)
             # currently, only 1 metric is supported (in addition to the loss)
             if not isinstance(class_name, str):
@@ -549,15 +590,15 @@ class TFBaseModel(BaseEstimator):
 
         self.loss = loss_defined
 
-        return 
-    
+        return
+
     def _resolve_optimizer(
             self,
-        ) -> Optimizer:
+    ) -> Optimizer:
 
         optimizer_section = self.config.get(CONFIG_OPTIMIZER)
         if not optimizer_section:
-             raise ValueError(f"{CONFIG_OPTIMIZER} is required")
+            raise ValueError(f"{CONFIG_OPTIMIZER} is required")
 
         optimizer_name = optimizer_section.get(CONFIG_OPTIMIZER_CLASS, OPTIMIZER_ADAM).lower().strip()
         if optimizer_name not in AVAILABLE_OPTIMIZERS:
@@ -571,7 +612,7 @@ class TFBaseModel(BaseEstimator):
 
     def _build_model(
             self,
-        ) -> Sequential:
+    ) -> Sequential:
         """
         Build the full Keras Sequential model.
         """
@@ -608,7 +649,7 @@ class TFBaseModel(BaseEstimator):
             X: pd.DataFrame,
             y: pd.Series,
             **extra_params,
-        ) -> None:
+    ) -> None:
 
         ##########################################################
         # assuming validation set will be passed by 'eval_set',
@@ -647,7 +688,7 @@ class TFBaseModel(BaseEstimator):
     def predict(
             self,
             X: pd.DataFrame,
-        ) ->  np.ndarray:
+    ) -> np.ndarray:
         # Serving endpoints may execute prediction in contexts where Keras `predict`
         # tries to iterate a tf.data.Dataset in graph mode. Using predict_on_batch
         # with normalized numpy input avoids that iteration path.
@@ -662,10 +703,20 @@ class TFBaseModel(BaseEstimator):
             raw_preds = self.model.predict(model_input, verbose=0)
         return self._to_numpy_output(raw_preds)
 
+    def prepare_for_serialization(self) -> None:
+        """Drop training-only state and keep inference-ready network weights."""
+        self.history = None
+        try:
+            cloned = tf.keras.models.clone_model(self.model)
+            cloned.set_weights(self.model.get_weights())
+            self.model = cloned
+        except Exception as error:
+            logger.info(f"Could not compact keras model for serialization: {error}")
+
     @staticmethod
     def _to_model_input(
             X: pd.DataFrame | np.ndarray | Any,
-        ) -> np.ndarray:
+    ) -> np.ndarray:
         if isinstance(X, pd.DataFrame):
             arr = X.to_numpy(copy=False)
         elif isinstance(X, pd.Series):
@@ -687,16 +738,16 @@ class TFBaseModel(BaseEstimator):
     @staticmethod
     def _to_numpy_output(
             predictions: Any,
-        ) -> np.ndarray:
+    ) -> np.ndarray:
         if hasattr(predictions, "numpy"):
             predictions = predictions.numpy()
         return np.asarray(predictions)
-    
+
     def find_optimal_threshold(
             self,
             X: pd.DataFrame,
             y: pd.Series,
-        ) -> None:
+    ) -> None:
 
         if not self.able_to_optimise_threshold:
             return
@@ -729,7 +780,7 @@ class TFBaseModel(BaseEstimator):
     def get_params(
             self,
             deep: bool = True,
-        ) -> dict[str, Any]:
+    ) -> dict[str, Any]:
         logger.info("getting params ... ")
         return {
             "config": self.config,
@@ -738,13 +789,13 @@ class TFBaseModel(BaseEstimator):
             'extra_params': self.extra_params,
         }
 
+
 class TFRegressor(TFBaseModel, RegressorMixin):
     def __init__(
             self,
             *args,
             **kwargs,
-        ) -> None:
-
+    ) -> None:
         self.number_outputs: int = 1
         self.last_layer_activation: str | None = None
         self.able_to_optimise_threshold: bool = False
@@ -752,12 +803,11 @@ class TFRegressor(TFBaseModel, RegressorMixin):
         super().__init__(*args, **kwargs)
 
         return
-    
+
     def predict(
             self,
             X: pd.DataFrame,
-        ) -> np.ndarray:
-
+    ) -> np.ndarray:
         preds = super().predict(X)
 
         # to be compatible and standard through the framework
@@ -771,10 +821,10 @@ class TFRegressor(TFBaseModel, RegressorMixin):
 # ---------------------------------------------------------------------------
 
 def _build_cluster_model(
-    config: dict,
-    random_state: int,
-    base_params: dict,
-    extra_params: dict,
+        config: dict,
+        random_state: int,
+        base_params: dict,
+        extra_params: dict,
 ) -> TransformedTargetRegressor:
     """
     Build one cluster model:
@@ -820,17 +870,29 @@ def _build_cluster_model(
 # ────────────────────────────────────────────────────────────────────
 # ── Model configuration ──────────────────────────────────────────── #
 
-_NUMERICAL_FEATURES: list[str] = ['AvgProcessingTimeW1', 'AvgProcessingTimeW2', 'AvgProcessingTimeW3', 'AvgProcessingTimeW4', 'CumulativeAmountPaid', 'CumulativeNumberClaimsPaid', 'CumulativeNumberInvoicesPaid', 'NumberPreAuth', 'TreatmentDateMonth']
+_NUMERICAL_FEATURES: list[str] = ['AvgProcessingTimeW1', 'AvgProcessingTimeW2', 'AvgProcessingTimeW3',
+                                  'AvgProcessingTimeW4', 'CumulativeAmountPaid', 'CumulativeNumberClaimsPaid',
+                                  'CumulativeNumberInvoicesPaid', 'NumberPreAuth', 'TreatmentDateMonth']
 
 _SEGMENT_COLUMNS: list[str] = ['PolicySubType', 'MajorICDGroupingDescription', 'Lag']
 
-_CONFIG: dict = {'architecture': [{'layer': {'type': 'dense', 'params': {'units': 32, 'activation': 'linear', 'name': 'layer_0th'}}}, {'layer': {'type': 'dense', 'params': {'units': 16, 'activation': 'linear', 'name': 'layer_1th'}}}], 'loss': {'type': 'huber', 'params': {'delta': 1.5}}, 'optimizer': {'type': 'adam', 'params': {'learning_rate': 0.01}}, 'epochs': 300, 'batch_size': 2000, 'eval_metric': {'type': 'mean_squared_error'}}
+_CONFIG: dict = {
+    'architecture': [{'layer': {'type': 'dense', 'params': {'units': 32, 'activation': 'linear', 'name': 'layer_0th'}}},
+                     {'layer': {'type': 'dense',
+                                'params': {'units': 16, 'activation': 'linear', 'name': 'layer_1th'}}}],
+    'loss': {'type': 'huber', 'params': {'delta': 1.5}},
+    'optimizer': {'type': 'adam', 'params': {'learning_rate': 0.01}}, 'epochs': 300, 'batch_size': 2000,
+    'eval_metric': {'type': 'mean_squared_error'}}
 
 _RANDOM_STATE: int = 42
 
 _BASE_PARAMS: dict = {'random_state': 42}
 
-_EXTRA_PARAMS: dict = {'random_state': 42, 'has_hyper_search': False, 'all_feature_transformers': ['robustscaler'], 'number_used_features': 9, 'temporal_reference_column': 'TreatmentDate', 'feature_columns': ['AvgProcessingTimeW1', 'AvgProcessingTimeW2', 'AvgProcessingTimeW3', 'AvgProcessingTimeW4', 'CumulativeAmountPaid', 'CumulativeNumberClaimsPaid', 'CumulativeNumberInvoicesPaid', 'NumberPreAuth', 'TreatmentDateMonth']}
+_EXTRA_PARAMS: dict = {'random_state': 42, 'has_hyper_search': False, 'all_feature_transformers': ['robustscaler'],
+                       'number_used_features': 9, 'temporal_reference_column': 'TreatmentDate',
+                       'feature_columns': ['AvgProcessingTimeW1', 'AvgProcessingTimeW2', 'AvgProcessingTimeW3',
+                                           'AvgProcessingTimeW4', 'CumulativeAmountPaid', 'CumulativeNumberClaimsPaid',
+                                           'CumulativeNumberInvoicesPaid', 'NumberPreAuth', 'TreatmentDateMonth']}
 
 _N_JOBS: int = -1
 
@@ -858,13 +920,19 @@ class ModelContractImpl(ModelContract):
         return model
 
     def log_model(
-        self,
-        model,
-        model_name,
-        signature,
-        input_example,
-        args: dict[str, Any],
+            self,
+            model,
+            model_name,
+            signature,
+            input_example,
+            args: dict[str, Any],
     ):
+        if hasattr(model, "compact_for_serialization"):
+            try:
+                model.compact_for_serialization()
+            except Exception:
+                pass
+        gc.collect()
         mlflow.sklearn.log_model(
             model,
             artifact_path="model",
@@ -877,17 +945,17 @@ class ModelContractImpl(ModelContract):
 
     #     package_dir = Path(databricks_mlops_stack.__file__).resolve().parent
     #     code_paths = [str(package_dir)]
- 
+
     #     # Build a temporary local model first and reuse the exact requirements inferred by MLflow there.
     #     # Then remove only the private framework package that serving cannot install from public indexes.
     #     default_reqs, inferred = self.get_infer_mlflow_dependencies(code_paths, input_example, model, signature)
- 
+
     #     filtered = [r for r in inferred if not str(r).lower().startswith("databricks-mlops-stack")]
     #     # Preserve order while removing duplicates.
     #     filtered = list(dict.fromkeys(filtered))
     #     if not filtered:
     #         filtered = default_reqs
- 
+
     #     mlflow.sklearn.log_model(
     #         model,
     #         artifact_path="model",
@@ -897,7 +965,7 @@ class ModelContractImpl(ModelContract):
     #         code_paths=code_paths,
     #         pip_requirements=filtered,
     #     )
-        
+
     # def get_infer_mlflow_dependencies(self, code_paths: list[str], input_example, model, signature) -> tuple[list[str], list[str]]:
     #     default_reqs = mlflow.sklearn.get_default_pip_requirements()
     #     try:
