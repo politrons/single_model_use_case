@@ -36,7 +36,7 @@ _MULTI_CLUSTER_WRAPPER_PATH = "contract_templates/multi_cluster_wrapper.py"
 _MODEL_TYPE_TO_PATH: dict[str, str] = {
     "tensorflow": "contract_templates/ibnr_nn.py",
     "prophet": "contract_templates/inflation_prophet.py",
-    ### ADD CHAIN LADDER HERE
+    "chain_ladder": "contract_templates/ibnr_cl.py",
 }
 
 _CONTRACT_TEMPLATE_PATH = "contract_templates/framework.py"
@@ -279,59 +279,80 @@ def generate_ibnr_contract(
     relative_path: str,
 ) -> None:
 
-    loss = model_config['loss']
-    if loss == 'huber':
-        loss = {
-            'type': 'huber',
-            'params': {
-                'delta': 1.5,
-            }
-        }
-    architecture = []
-    for i, layer_units in enumerate(model_config['unit_per_layer']):
-        architecture.append({
-            'layer': {
-                'type': 'dense',
-                'params': {
-                    'units': layer_units,
-                    'activation': model_config['activation'],
-                    'name': f'layer_{i}th',
-                }
-            }
-        })
-
     mapping_model_contract_types = {
         'neural_network': 'tensorflow',
-        #### ADD CHAIN LADDER HERE
+        'chain_ladder': 'chain_ladder'
     }
     model_contract_type = mapping_model_contract_types.get(model_type, 'unknow!!!!!!!!!!!!')
+
+    if model_type == "chain_ladder":
+        
+        generate_model_contract(
+            output_folder=model_contract_path / 'training/model',
+            model_type=model_contract_type,
+            numerical_features=numerical_features,
+            segment_columns=segment_columns,
+            config={'occurrence_date_col': model_config['occurrence_date_col']},
+            random_state=random_state,
+            base_params={'random_state': random_state},
+            extra_params={
+                'random_state': random_state,
+                'temporal_reference_column': temporal_reference_column,
+                'feature_columns': numerical_features,
+            },
+            n_jobs=-1,
+            relative_path=relative_path,
+        )
     
-    generate_model_contract(
-        output_folder=model_contract_path / 'training/model',
-        model_type=model_contract_type,
-        numerical_features=numerical_features,
-        segment_columns=segment_columns,
-        config={
-            'architecture': architecture,
-            'loss': loss,
-            'optimizer': {'type': 'adam', 'params': {'learning_rate': model_config['learning_rate'],},},
-            'epochs': model_config['epochs'],
-            'batch_size': model_config['batch_size'],
-            'eval_metric': {'type': 'mean_squared_error'},
-        },
-        random_state=random_state,
-        base_params={'random_state': random_state},
-        extra_params={
-            'random_state': random_state,
-            'has_hyper_search': False,
-            'all_feature_transformers': ['robustscaler'],
-            'number_used_features': len(numerical_features),
-            'temporal_reference_column': temporal_reference_column,
-            'feature_columns': numerical_features,
-        },
-        n_jobs=-1,
-        relative_path=relative_path,
-    )
+    else :
+
+        loss = model_config['loss']
+        if loss == 'huber':
+            loss = {
+                'type': 'huber',
+                'params': {
+                    'delta': 1.5,
+                }
+            }
+        architecture = []
+        for i, layer_units in enumerate(model_config['unit_per_layer']):
+            architecture.append({
+                'layer': {
+                    'type': 'dense',
+                    'params': {
+                        'units': layer_units,
+                        'activation': model_config['activation'],
+                        'name': f'layer_{i}th',
+                    }
+                }
+            })
+
+        generate_model_contract(
+            output_folder=model_contract_path / 'training/model',
+            model_type=model_contract_type,
+            numerical_features=numerical_features,
+            segment_columns=segment_columns,
+            config={
+                'architecture': architecture,
+                'loss': loss,
+                'optimizer': {'type': 'adam', 'params': {'learning_rate': model_config['learning_rate'],},},
+                'epochs': model_config['epochs'],
+                'batch_size': model_config['batch_size'],
+                'eval_metric': {'type': 'mean_squared_error'},
+            },
+            random_state=random_state,
+            base_params={'random_state': random_state},
+            extra_params={
+                'random_state': random_state,
+                'has_hyper_search': False,
+                'all_feature_transformers': ['robustscaler'],
+                'number_used_features': len(numerical_features),
+                'temporal_reference_column': temporal_reference_column,
+                'feature_columns': numerical_features,
+            },
+            n_jobs=-1,
+            relative_path=relative_path,
+        )
 
     return
 
