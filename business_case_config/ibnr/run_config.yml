@@ -12,23 +12,27 @@ ibnr_standalone:
   model_types:
     chain_ladder:
       model_configs:
-        - null
+        - occurrence_date_col: "TreatmentDate"
       segmentation_combinations:
       - - PolicySubType
         - SystemID
       targets:
       - UltimateCharge
       nb_training_years:
+      - 1
+      - 3
       - 5
       - 7
       input_features_combinations:
-      - []
+      - - CumulativeAmountPaid
+      - - CumulativeAmountPaid
+        - TreatmentDateMonth
     neural_network:
       model_configs:
       - unit_per_layer:
         - 32
         - 16
-        activation: linear
+        activation: relu
         learning_rate: 0.01
         epochs: 300
         batch_size: 2000
@@ -44,31 +48,40 @@ ibnr_standalone:
       - UltimateNumberInvoices
       - UltimateCharge
       input_features_combinations:
-      - - TreatmentDateMonth
-        - NumberPreAuth
+      - - CumulativeAmountPaid
+        - CumulativeNumberClaimsPaid
         - CumulativeNumberInvoicesPaid
+      - - CumulativeAmountPaid
+        - CumulativeNumberClaimsPaid
+        - CumulativeNumberInvoicesPaid
+        - TreatmentDateMonth
+        - NumberPreAuth
+      - - CumulativeAmountPaid
+        - CumulativeNumberClaimsPaid
+        - CumulativeNumberInvoicesPaid
+        - TreatmentDateMonth
+        - NumberPreAuth
         - AvgProcessingTimeW1
         - AvgProcessingTimeW2
         - AvgProcessingTimeW3
         - AvgProcessingTimeW4
-        - CumulativeAmountPaid
-        - CumulativeNumberClaimsPaid
+
 ibnr_inflation:
   model_types:
-    chain_ladder:
-      model_configs:
-        - null
-      segmentation_combinations:
-      - - PolicySubType
-        - MajorICDGroupingDescription
-      targets:
-      - UltimateNumberClaims
-      - UltimateNumberInvoices
-      - UltimateCharge
-      nb_training_years:
-      - 5
-      input_features_combinations:
-      - []
+    # chain_ladder:
+    #   model_configs:
+    #     - null
+    #   segmentation_combinations:
+    #   - - PolicySubType
+    #     - MajorICDGroupingDescription
+    #   targets:
+    #   - UltimateNumberClaims
+    #   - UltimateNumberInvoices
+    #   - UltimateCharge
+    #   nb_training_years:
+    #   - 5
+    #   input_features_combinations:
+    #   - []
     neural_network:
       model_configs:
       - unit_per_layer:
