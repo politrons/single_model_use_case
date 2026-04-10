@@ -1,13 +1,30 @@
-catalog: 'axainsurance_claims_dv_ml'
-schema: 'sanity_build'
-table_name: 'sanity_build_fs'
+#catalog: 'axainsurance_claims_dv_ml'
+#schema: 'sanity_build'
+#table_name: 'sanity_build_fs'
+#feature_columns:
+#  - subscription_length
+#  - vehicle_age
+#  - customer_age
+#  - segment
+#  - is_esc
+#target_column : claim_status
+#return_dataframe_type: pandas
+#temporal_reference_column: claim_date
+#enable_baseline_table: true
+
+schema: health_data_factory_forecast_framework
+table_name: ibnr_gold__years_5__start_2025_04_01__end_2026_03_01__policysubtype_systemid
 feature_columns:
-  - subscription_length
-  - vehicle_age
-  - customer_age
-  - segment
-  - is_esc
-target_column : claim_status
-return_dataframe_type: pandas
-temporal_reference_column: claim_date
-enable_baseline_table: true
+- CumulativeAmountPaid
+- PolicySubType
+- SystemID
+target_column: UltimateCharge
+auxiliary_columns:
+- CumulativeNumberClaimsPaid
+- CumulativeNumberInvoicesPaid
+- Lag
+- Segment
+- TreatmentDate
+- is_inference
+- segment_key
+temporal_reference_column: TreatmentDate
