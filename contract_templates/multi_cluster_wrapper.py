@@ -10,7 +10,7 @@ backend.
 
 import gc
 import logging
-from collections.abc import Callable   # type: ignore # noqa
+from collections.abc import Callable  # type: ignore # noqa
 from typing import Any
 
 import numpy as np  # type: ignore # noqa
@@ -149,20 +149,16 @@ class MultiClusterWrapper(BaseEstimator, RegressorMixin):
 
         missing_seg = [c for c in self.segment_columns if c not in df.columns]
         if missing_seg:
-            raise ValueError(f"Segment columns not found in df: {missing_seg}")
+            raise ValueError(f"segment columns not found in df: {missing_seg}")
 
         missing_feat = [c for c in self.numerical_features if c not in df.columns]
         if missing_feat:
             raise ValueError(f"Numerical features not found in df: {missing_feat}")
 
         groups = list(df.groupby(self.segment_columns, sort=False))
-        logger.info(
-            "Fitting %d cluster models with n_jobs=%d …", len(groups), self.n_jobs
-        )
+        logger.info("Fitting %d cluster models with n_jobs=%d …", len(groups), self.n_jobs)
 
-        results: list[tuple[tuple, Any]] = Parallel(
-            n_jobs=self.n_jobs, prefer="threads"
-        )(
+        results: list[tuple[tuple, Any]] = Parallel(n_jobs=self.n_jobs, prefer="threads")(
             delayed(self._fit_one_cluster)(
                 self._cluster_key(key),
                 group[self.numerical_features],
@@ -181,6 +177,7 @@ class MultiClusterWrapper(BaseEstimator, RegressorMixin):
         if self.is_tensorflow:
             try:
                 from tensorflow import keras  # type: ignore[import-untyped]
+
                 keras.backend.clear_session()
                 logger.info("Keras backend session cleared after fitting.")
             except Exception as exc:  # noqa: BLE001
@@ -218,18 +215,17 @@ class MultiClusterWrapper(BaseEstimator, RegressorMixin):
             If required columns are missing from `df`.
         """
         if not self.models_:
-            raise RuntimeError(
-                "MultiClusterWrapper is not fitted yet. Call fit() first."
-            )
+            raise RuntimeError("MultiClusterWrapper is not fitted yet. Call fit() first.")
 
         missing_seg = [c for c in self.segment_columns if c not in df.columns]
         if missing_seg:
-            raise ValueError(f"Segment columns not found in df: {missing_seg}")
+            raise ValueError(f"segment columns not found in df: {missing_seg}")
 
         # TF-specific: ensure graph mode is active to reduce retracing.
         if self.is_tensorflow:
             try:
                 import tensorflow as tf  # type: ignore[import-untyped]
+
                 tf.config.run_functions_eagerly(False)
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Could not set TF eager mode: %s", exc)
@@ -244,23 +240,20 @@ class MultiClusterWrapper(BaseEstimator, RegressorMixin):
             seg_key = self._cluster_key(key)
 
             if seg_key not in self.models_:
-                raise KeyError(
-                    f"Cluster {seg_key} was not seen during training. "
-                    "Cannot generate predictions for unseen clusters."
-                )
+                raise KeyError(f"Cluster {seg_key} was not seen during training. Cannot generate predictions for unseen clusters.")
 
             X = group[self.numerical_features]
 
             preds = self.models_[seg_key].predict(X)
             predictions.loc[group.index] = preds
 
-            mem_gb = process.memory_info().rss / 1024 ** 3
-            logger.info("Segment %s — Memory: %.2f GB", seg_key, mem_gb)
+            mem_gb = process.memory_info().rss / 1024**3
+            logger.info("segment %s — Memory: %.2f GB", seg_key, mem_gb)
 
         gc.collect()
 
         # Restore original row order
-        return predictions.loc[df.index].values 
+        return predictions.loc[df.index].values
 
     def compact_for_serialization(self) -> None:
         """Best-effort memory compaction before pickling/logging."""

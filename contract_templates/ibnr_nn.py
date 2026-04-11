@@ -32,67 +32,71 @@ from tensorflow.keras.callbacks import EarlyStopping as tfEarlyStopping  # type:
 
 logger = logging.getLogger(__name__)
 
-CONFIG_BUILDING_BLOCKS= "building_blocks"
-CONFIG_ARCHITECTURE= "architecture"
-CONFIG_LOSS= "loss"
-CONFIG_OPTIMIZER= "optimizer"
-CONFIG_EPOCHS= "epochs" # also used in neuralprophet
-CONFIG_BATCH_SIZE= "batch_size" # also used in neuralprophet
-CONFIG_BLOCK= "block"
-CONFIG_BLOCK_NAME= "name"
-CONFIG_BLOCK_COMPOSITE_LAYERS= "composite_layers"
-CONFIG_BLOCK_OVERRIDE= "overrides"
-CONFIG_LAYER= "layer"
-CONFIG_LAYER_NAME= "name"
-CONFIG_LAYER_TYPE= "type"
-CONFIG_OPTIMISE_THRESHOLD= "optimise_threshold"
-CONFIG_METRIC_CLASS= "type"
-CONFIG_SCORING_CLASS= "type"
-CONFIG_LOSS_CLASS= "type"
-CONFIG_OPTIMIZER_CLASS= "type"
-CONFIG_EVAL_METRIC= "eval_metric"
-CONFIG_SCORING= "scoring"
-OPTIMIZER_ADAM = 'adam'
-CONFIG_EVAL_SET = 'eval_set'
+CONFIG_BUILDING_BLOCKS = "building_blocks"
+CONFIG_ARCHITECTURE = "architecture"
+CONFIG_LOSS = "loss"
+CONFIG_OPTIMIZER = "optimizer"
+CONFIG_EPOCHS = "epochs"  # also used in neuralprophet
+CONFIG_BATCH_SIZE = "batch_size"  # also used in neuralprophet
+CONFIG_BLOCK = "block"
+CONFIG_BLOCK_NAME = "name"
+CONFIG_BLOCK_COMPOSITE_LAYERS = "composite_layers"
+CONFIG_BLOCK_OVERRIDE = "overrides"
+CONFIG_LAYER = "layer"
+CONFIG_LAYER_NAME = "name"
+CONFIG_LAYER_TYPE = "type"
+CONFIG_OPTIMISE_THRESHOLD = "optimise_threshold"
+CONFIG_METRIC_CLASS = "type"
+CONFIG_SCORING_CLASS = "type"
+CONFIG_LOSS_CLASS = "type"
+CONFIG_OPTIMIZER_CLASS = "type"
+CONFIG_EVAL_METRIC = "eval_metric"
+CONFIG_SCORING = "scoring"
+OPTIMIZER_ADAM = "adam"
+CONFIG_EVAL_SET = "eval_set"
 TF_PATIENCE = "patience"
 TF_MIN_DELTA = "min_delta"
 
-def get_metric_info(function_name: str,) -> dict[str, Any]:
+
+def get_metric_info(
+    function_name: str,
+) -> dict[str, Any]:
 
     availables = {
-        'mean_squared_error': {'greater_is_better': False},
-        'r2_score': {'greater_is_better': True},
-        'r2': {'greater_is_better': True},
+        "mean_squared_error": {"greater_is_better": False},
+        "r2_score": {"greater_is_better": True},
+        "r2": {"greater_is_better": True},
     }
 
     return availables[function_name]
+
 
 # -----------------------------------------------------------------------------
 # Catalogs
 # -----------------------------------------------------------------------------
 AVAILABLE_OPTIMIZERS = {
-    'adam': Adam,
-    'sgd': SGD,
-    'rmsprop': RMSprop,
+    "adam": Adam,
+    "sgd": SGD,
+    "rmsprop": RMSprop,
 }
 
 AVAILABLE_TF_LOSSES = {
-    'binary_crossentropy': losses.BinaryCrossentropy,
-    'mean_squared_error': losses.MeanSquaredError,
-    'huber': losses.Huber,
+    "binary_crossentropy": losses.BinaryCrossentropy,
+    "mean_squared_error": losses.MeanSquaredError,
+    "huber": losses.Huber,
 }
 
-AVAILABLE_TF_METRICS = { # flexibility: although string is used for either loss or metric, when importing use the right class
-    'mean_squared_error': metrics.MeanSquaredError,
-    'r2_score': metrics.R2Score,
-    'r2': metrics.R2Score,
+AVAILABLE_TF_METRICS = {  # flexibility: although string is used for either loss or metric, when importing use the right class
+    "mean_squared_error": metrics.MeanSquaredError,
+    "r2_score": metrics.R2Score,
+    "r2": metrics.R2Score,
 }
 
 AVAILABLE_LAYERS = {
-    'dense': layers.Dense,
-    'dropout': layers.Dropout,
-    'batchnormalization': layers.BatchNormalization,
-    'flatten': layers.Flatten,  # In case needed, though for tabular usually not
+    "dense": layers.Dense,
+    "dropout": layers.Dropout,
+    "batchnormalization": layers.BatchNormalization,
+    "flatten": layers.Flatten,  # In case needed, though for tabular usually not
 }
 
 _DEFAULT_BINARY_CLASSIFICATION_THRESHOLD = 0.5
@@ -101,10 +105,12 @@ _DEFAULT_BINARY_CLASSIFICATION_THRESHOLD = 0.5
 # 1. TFBaseModel
 # ---------------------------------------------------------------------------
 
+
 class TFBaseModel(BaseEstimator):
     """
     Base class for TensorFlow models compatible with scikit-learn.
     """
+
     def __init__(
         self,
         config: dict[str, Any],
@@ -132,13 +138,13 @@ class TFBaseModel(BaseEstimator):
         self.history: tfHistory | None = None
         self.epochs_completed: int = -1
 
-        self.epochs: int = config.get('epochs', 10)
+        self.epochs: int = config.get("epochs", 10)
         logger.info(f"number epochs: {self.epochs}")
 
-        self.batch_size: int = config.get('batch_size', 32)
+        self.batch_size: int = config.get("batch_size", 32)
         logger.info(f"batch size: {self.batch_size}")
 
-        CONFIG_OPTIMISE_THRESHOLD = 'optimise_threshold'
+        CONFIG_OPTIMISE_THRESHOLD = "optimise_threshold"
         self.optimise_threshold: bool = config.get(CONFIG_OPTIMISE_THRESHOLD, False)
         if not isinstance(self.optimise_threshold, bool):
             raise ValueError(f"{CONFIG_OPTIMISE_THRESHOLD} needs to be boolean")
@@ -146,11 +152,11 @@ class TFBaseModel(BaseEstimator):
             raise ValueError(f"Cannot set {CONFIG_OPTIMISE_THRESHOLD} to True for this type of task")
         logger.info(f"optimise threshold: {self.optimise_threshold}")
 
-        for transformer in self.extra_params.get('all_feature_transformers', []):
-            if transformer in ['onehotencoder']:
+        for transformer in self.extra_params.get("all_feature_transformers", []):
+            if transformer in ["onehotencoder"]:
                 raise ValueError(f"Currently the transformer {transformer} is not supported for TensorFlow models")
-            
-        if self.extra_params.get('has_hyper_search', False):
+
+        if self.extra_params.get("has_hyper_search", False):
             raise ValueError("Currently hyperparam search is not supported for TensorFlow models")
 
         # Build the model
@@ -159,8 +165,8 @@ class TFBaseModel(BaseEstimator):
         return
 
     def _resolve_blocks(
-            self,
-        ) -> dict[str, list[dict[str, Any]]]:
+        self,
+    ) -> dict[str, list[dict[str, Any]]]:
         """
         Parse building_blocks into a dict of name to list of layer configs.
         """
@@ -172,14 +178,14 @@ class TFBaseModel(BaseEstimator):
                 raise ValueError(f"Duplicate block {CONFIG_BLOCK_NAME}: {name}")
             blocks[name] = block[CONFIG_BLOCK_COMPOSITE_LAYERS]
         return blocks
-    
+
     def _resolve_layer(
-            self,
-            added_layers: int,
-            layer_config: dict[str, Any],
-            override_config: dict[str, Any] | None = None,
-            maybe_prefix_name: str | None = None,
-        ) -> layers.Layer:
+        self,
+        added_layers: int,
+        layer_config: dict[str, Any],
+        override_config: dict[str, Any] | None = None,
+        maybe_prefix_name: str | None = None,
+    ) -> layers.Layer:
 
         layer_class_name = layer_config.get(CONFIG_LAYER_TYPE)
         if not layer_class_name:
@@ -192,13 +198,13 @@ class TFBaseModel(BaseEstimator):
         layer_params = layer_config.get("params", {})
         maybe_layer_name = layer_config.get(CONFIG_LAYER_NAME)
         if maybe_prefix_name or maybe_layer_name:
-            defined_layer_name: str = ''
+            defined_layer_name: str = ""
             if maybe_prefix_name:
-                defined_layer_name = f'{maybe_prefix_name}_'
+                defined_layer_name = f"{maybe_prefix_name}_"
             if maybe_layer_name:
-                defined_layer_name += f'{maybe_layer_name}_'
-            defined_layer_name += f'{added_layers}'
-            layer_params.update({'name': defined_layer_name})
+                defined_layer_name += f"{maybe_layer_name}_"
+            defined_layer_name += f"{added_layers}"
+            layer_params.update({"name": defined_layer_name})
 
         if override_config:
             layer_name = layer_config.get(CONFIG_LAYER_NAME)
@@ -208,8 +214,8 @@ class TFBaseModel(BaseEstimator):
         return layer_class(**layer_params)
 
     def _resolve_hidden_layers(
-            self,
-        ) -> list[layers.Layer]:
+        self,
+    ) -> list[layers.Layer]:
         """
         Build the list of hidden layers based on architecture config.
         """
@@ -245,13 +251,13 @@ class TFBaseModel(BaseEstimator):
                 raise ValueError(f"Architecture item must have '{CONFIG_BLOCK}' or '{CONFIG_LAYER}'")
 
         return hidden_layers
-    
+
     def _resolve_metrics(self) -> None:
 
         def _parse_eval(
-                eval_subsection: dict,
-                subsection_name: str,
-            ) -> tuple[str, dict]:
+            eval_subsection: dict,
+            subsection_name: str,
+        ) -> tuple[str, dict]:
             class_name = eval_subsection.get(subsection_name)
             # currently, only 1 metric is supported (in addition to the loss)
             if not isinstance(class_name, str):
@@ -278,12 +284,11 @@ class TFBaseModel(BaseEstimator):
             if metric_class_name not in AVAILABLE_TF_METRICS:
                 raise ValueError(f"Unsupported tensorflow metric: {metric_class_name}")
             else:
-
                 metric_defined = AVAILABLE_TF_METRICS[metric_class_name](**metric_class_params)
 
                 logger.info(f"metric: {metric_defined}")
 
-                self.metric_is_greater_is_better = get_metric_info(metric_class_name)['greater_is_better']
+                self.metric_is_greater_is_better = get_metric_info(metric_class_name)["greater_is_better"]
                 self.metric = metric_defined
 
         return
@@ -308,15 +313,15 @@ class TFBaseModel(BaseEstimator):
 
         self.loss = loss_defined
 
-        return 
-    
+        return
+
     def _resolve_optimizer(
-            self,
-        ) -> Optimizer:
+        self,
+    ) -> Optimizer:
 
         optimizer_section = self.config.get(CONFIG_OPTIMIZER)
         if not optimizer_section:
-             raise ValueError(f"{CONFIG_OPTIMIZER} is required")
+            raise ValueError(f"{CONFIG_OPTIMIZER} is required")
 
         optimizer_name = optimizer_section.get(CONFIG_OPTIMIZER_CLASS, OPTIMIZER_ADAM).lower().strip()
         if optimizer_name not in AVAILABLE_OPTIMIZERS:
@@ -329,25 +334,21 @@ class TFBaseModel(BaseEstimator):
         return AVAILABLE_OPTIMIZERS[optimizer_name](**optimizer_params)
 
     def _build_model(
-            self,
-        ) -> Sequential:
+        self,
+    ) -> Sequential:
         """
-        Build the full Keras Sequential model.
+        Build the Full Keras Sequential model.
         """
         model = Sequential()
 
         # first layer
-        model.add(layers.Input(shape=(self.extra_params['number_used_features'],)))
+        model.add(layers.Input(shape=(self.extra_params["number_used_features"],)))
         # hidden layers
         hidden_layers = self._resolve_hidden_layers()
         for layer in hidden_layers:
             model.add(layer)
         # output layer
-        model.add(layers.Dense(
-            self.number_outputs,
-            activation=self.last_layer_activation,
-            name='output_layer'
-        ))
+        model.add(layers.Dense(self.number_outputs, activation=self.last_layer_activation, name="output_layer"))
 
         # loss
         self._resolve_loss()
@@ -363,11 +364,11 @@ class TFBaseModel(BaseEstimator):
         return model
 
     def fit(
-            self,
-            X: pd.DataFrame,
-            y: pd.Series,
-            **extra_params,
-        ) -> None:
+        self,
+        X: pd.DataFrame,
+        y: pd.Series,
+        **extra_params,
+    ) -> None:
 
         ##########################################################
         # assuming validation set will be passed by 'eval_set',
@@ -379,14 +380,17 @@ class TFBaseModel(BaseEstimator):
 
         if CONFIG_EVAL_SET in extra_params:
             validation_data = (extra_params[CONFIG_EVAL_SET][0][0], extra_params[CONFIG_EVAL_SET][0][1])
-            call_back_early_stop = [tfEarlyStopping(
-                min_delta=self.extra_params.get(TF_MIN_DELTA, 0),
-                patience=self.extra_params.get(TF_PATIENCE, 0),
-            )]
+            call_back_early_stop = [
+                tfEarlyStopping(
+                    min_delta=self.extra_params.get(TF_MIN_DELTA, 0),
+                    patience=self.extra_params.get(TF_PATIENCE, 0),
+                )
+            ]
             logger.info(f"early stop set: {call_back_early_stop}")
 
         fit_result = self.model.fit(
-            X, y,
+            X,
+            y,
             epochs=self.epochs,
             batch_size=self.batch_size,
             validation_data=validation_data,
@@ -395,7 +399,7 @@ class TFBaseModel(BaseEstimator):
         )
 
         self.history = fit_result
-        self.epochs_completed = len(self.history.history['loss'])
+        self.epochs_completed = len(self.history.history["loss"])
         self.is_fitted_ = True
 
         self.find_optimal_threshold(X, y)
@@ -404,9 +408,9 @@ class TFBaseModel(BaseEstimator):
 
     # @tf.function(reduce_retracing=True)
     def predict(
-            self,
-            X: pd.DataFrame,
-        ) ->  np.ndarray:
+        self,
+        X: pd.DataFrame,
+    ) -> np.ndarray:
         # Serving endpoints may execute prediction in contexts where Keras `predict`
         # tries to iterate a tf.data.Dataset in graph mode. Using predict_on_batch
         # with normalized numpy input avoids that iteration path.
@@ -433,8 +437,8 @@ class TFBaseModel(BaseEstimator):
 
     @staticmethod
     def _to_model_input(
-            X: pd.DataFrame | np.ndarray | Any,
-        ) -> np.ndarray:
+        X: pd.DataFrame | np.ndarray | Any,
+    ) -> np.ndarray:
         if isinstance(X, pd.DataFrame):
             arr = X.to_numpy(copy=False)
         elif isinstance(X, pd.Series):
@@ -455,17 +459,17 @@ class TFBaseModel(BaseEstimator):
 
     @staticmethod
     def _to_numpy_output(
-            predictions: Any,
-        ) -> np.ndarray:
+        predictions: Any,
+    ) -> np.ndarray:
         if hasattr(predictions, "numpy"):
             predictions = predictions.numpy()
         return np.asarray(predictions)
-    
+
     def find_optimal_threshold(
-            self,
-            X: pd.DataFrame,
-            y: pd.Series,
-        ) -> None:
+        self,
+        X: pd.DataFrame,
+        y: pd.Series,
+    ) -> None:
 
         if not self.able_to_optimise_threshold:
             return
@@ -496,23 +500,24 @@ class TFBaseModel(BaseEstimator):
         return
 
     def get_params(
-            self,
-            deep: bool = True,
-        ) -> dict[str, Any]:
+        self,
+        deep: bool = True,
+    ) -> dict[str, Any]:
         logger.info("getting params ... ")
         return {
             "config": self.config,
             "random_state": self.random_state,
-            'params': self.params,
-            'extra_params': self.extra_params,
+            "params": self.params,
+            "extra_params": self.extra_params,
         }
+
 
 class TFRegressor(TFBaseModel, RegressorMixin):
     def __init__(
-            self,
-            *args,
-            **kwargs,
-        ) -> None:
+        self,
+        *args,
+        **kwargs,
+    ) -> None:
 
         self.number_outputs: int = 1
         self.last_layer_activation: str | None = None
@@ -521,11 +526,11 @@ class TFRegressor(TFBaseModel, RegressorMixin):
         super().__init__(*args, **kwargs)
 
         return
-    
+
     def predict(
-            self,
-            X: pd.DataFrame,
-        ) -> np.ndarray:
+        self,
+        X: pd.DataFrame,
+    ) -> np.ndarray:
 
         preds = super().predict(X)
 
@@ -538,6 +543,7 @@ class TFRegressor(TFBaseModel, RegressorMixin):
 # ---------------------------------------------------------------------------
 # 2. SegmentedModel  (single-segment model)
 # ---------------------------------------------------------------------------
+
 
 def _build_cluster_model(
     config: dict,

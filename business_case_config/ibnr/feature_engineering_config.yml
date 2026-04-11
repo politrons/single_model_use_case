@@ -1,3 +1,3 @@
-occured_date_col: TreatmentDate
+occured_date_col: treatment_date
 min_available_timeframe: '2003-01-01'
 maximal_years_runoff_lags: 3

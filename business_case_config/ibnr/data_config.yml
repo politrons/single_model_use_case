@@ -27,11 +27,11 @@ tables:
     primary_keys:
     - PolicyID
     - SystemID
-    - MemberID
+    - member_id
     - HistoryID
   invoices:
     primary_keys:
-    - InvoiceKey
+    - invoice_id
   preauthbase:
     full_name: axahealth_dataplatform_pr_gold.base_layer.pre_auth_treatment
     primary_keys:
@@ -43,4 +43,4 @@ tables:
     - ClaimKey
   claimcontract:
     primary_keys:
-    - ClaimKey
+    - claim_id

@@ -4,3 +4,5 @@ timeframe_info:
   training_end: '2025-12-01'
   nb_forecast_years: 4
 is_to_compensate_ibnr_on_invoices_view: true
+clusters_table: 'axahealth_dataplatform_pr_gold.data_science.inflation_clusters'
+regressors: 'axahealth_dataplatform_pr_gold.data_science.actuarial_ml_external_regressors'
