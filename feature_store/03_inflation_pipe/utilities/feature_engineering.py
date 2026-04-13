@@ -98,17 +98,38 @@ def compensate_ibnr_on_invoices_view(
         ("ultimate_nb_invoice_paid", "coef_nb_invoice", "nb_invoice"),
     ]
 
-    join_keys = [*ibnr_segmentation, "year_month_date"]
+    # `ibnr_segmentation` may come as either list[str] or list[list[str]].
+    # Normalize it to a flat list of column names.
+    segmentation_cols: list[str] = []
+    for item in ibnr_segmentation:
+        if isinstance(item, (list, tuple, set)):
+            for col in item:
+                col_name = str(col)
+                if col_name not in segmentation_cols:
+                    segmentation_cols.append(col_name)
+        else:
+            col_name = str(item)
+            if col_name not in segmentation_cols:
+                segmentation_cols.append(col_name)
+
+    # Compatibility with possible CamelCase variants from upstream IBNR outputs.
+    if "Target" in df_ibnr_coeff.columns and "target" not in df_ibnr_coeff.columns:
+        df_ibnr_coeff = df_ibnr_coeff.withColumnRenamed("Target", "target")
+    if "TreatmentDate" in df_ibnr_coeff.columns and "treatment_date" not in df_ibnr_coeff.columns:
+        df_ibnr_coeff = df_ibnr_coeff.withColumnRenamed("TreatmentDate", "treatment_date")
+
+    df_ibnr_coeff = df_ibnr_coeff.withColumnRenamed("treatment_date", "year_month_date")
+
+    common_segmentation_cols = [
+        c for c in segmentation_cols
+        if c in df_agg.columns and c in df_ibnr_coeff.columns
+    ]
+    join_keys = [*common_segmentation_cols, "year_month_date"]
     df_agg_inflated = df_agg
 
     for target_value, coef_col, _ in ibnr_targets:
-        df_coeff_subset = df_ibnr_coeff.filter(F.col("target") == target_value).withColumnRenamed("treatment_date", "year_month_date").select(*join_keys, coef_col)
-        df_agg_inflated = table_merge(
-            df_agg_inflated,
-            df_coeff_subset,
-            on=join_keys,
-            how="outer",
-        )
+        df_coeff_subset = df_ibnr_coeff.filter(F.col("target") == target_value).select(*join_keys, coef_col)
+        df_agg_inflated = df_agg_inflated.join(df_coeff_subset, on=join_keys, how="outer")
 
     for _, coef_col, metric_col in ibnr_targets:
         df_agg_inflated = df_agg_inflated.withColumn(
