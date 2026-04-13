@@ -25,7 +25,8 @@ def invoicelink():
         )
     )
 
-    df = df.withColumn("claim_id", F.coalesce(F.col("ClaimKey"), F.col("MemberID")))
+    df = df.withColumnRenamed("MemberID", "member_id")
+    df = df.withColumn("claim_id", F.coalesce(F.col("ClaimKey"), F.col("member_id")))
     df = df.withColumnRenamed("InvoiceKey", "invoice_id")
 
     return df
