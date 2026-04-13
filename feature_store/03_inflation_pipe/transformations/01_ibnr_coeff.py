@@ -22,6 +22,10 @@ def _normalize_ibnr_columns(df):
     df = _rename_if_exists(df, "UltimateAmountPaidPredicted", "ultimate_amount_paid_predicted")
     df = _rename_if_exists(df, "UltimateNumberClaimsPaidPredicted", "ultimate_nb_claim_paid_predicted")
     df = _rename_if_exists(df, "UltimateNumberInvoicesPaidPredicted", "ultimate_nb_invoice_paid_predicted")
+    # Alternative naming seen in some IBNR exports.
+    df = _rename_if_exists(df, "UltimateChargePredicted", "ultimate_amount_paid_predicted")
+    df = _rename_if_exists(df, "UltimateNumberClaimsPredicted", "ultimate_nb_claim_paid_predicted")
+    df = _rename_if_exists(df, "UltimateNumberInvoicesPredicted", "ultimate_nb_invoice_paid_predicted")
     return df
 
 
