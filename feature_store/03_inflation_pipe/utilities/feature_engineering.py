@@ -156,6 +156,26 @@ def _create_derived_features(df: DataFrame) -> DataFrame:
 
 def _join_with_regressors(df_main: DataFrame, df_regressors: DataFrame, temporal_col: str) -> DataFrame:
     """Join main dataframe with regressors and validate"""
+    # Normalize known temporal-column variants from upstream regressor tables.
+    if temporal_col not in df_regressors.columns:
+        fallback_temporal_candidates = [
+            "YearMonthDate",
+            "year_month_date",
+            "TreatmentDate",
+            "treatment_date",
+            "SeenMonth",
+        ]
+        for candidate in fallback_temporal_candidates:
+            if candidate in df_regressors.columns:
+                df_regressors = df_regressors.withColumnRenamed(candidate, temporal_col)
+                break
+
+    if temporal_col not in df_regressors.columns:
+        raise ValueError(
+            f"Temporal column '{temporal_col}' not found in regressors table. "
+            f"Available columns: {df_regressors.columns}"
+        )
+
     nb_observations = df_main.count()
     df_joined = df_main.join(df_regressors, on=temporal_col, how="inner")
 
