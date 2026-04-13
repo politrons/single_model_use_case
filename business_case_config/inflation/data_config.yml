@@ -10,3 +10,11 @@ tables:
     primary_keys:
     - SeenMonth
     - YearMonthDate
+  inflation_aggregated_portfolio:
+    primary_keys:
+    - year_month_date
+    - PolicySubType
+    - AgeBucket
+    - UKMemberRegion
+    - SystemID
+    - MajorICDGroupingDescription
