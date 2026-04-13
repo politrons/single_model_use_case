@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Any, Callable, List, Tuple, cast
+import re
+from typing import Any, Callable, Dict, List, Tuple, cast
 
 import pandas as pd  # type: ignore # noqa
 from pyspark.sql import DataFrame, SparkSession  # type: ignore # noqa
@@ -81,9 +82,88 @@ class SparkTableDataLoader:
 
         if return_dataframe_type == "pandas":
             pdf = df.toPandas()
-            return pdf[features + auxiliary_columns], pdf[target]
+            available_columns = list(pdf.columns)
+            x_columns = features + auxiliary_columns
+            selected = self._select_with_flexible_names(pdf, x_columns, available_columns, "feature/auxiliary")
+            resolved_target = self._resolve_target_column(target, available_columns)
+            return selected, pdf[resolved_target]
 
         return df.select(*features, *auxiliary_columns), df.select(target)
+
+    @staticmethod
+    def _normalize_column_name(name: str) -> str:
+        return re.sub(r"[^a-z0-9]", "", str(name).lower())
+
+    @classmethod
+    def _build_normalized_lookup(cls, available_columns: List[str]) -> Dict[str, List[str]]:
+        lookup: Dict[str, List[str]] = {}
+        for column in available_columns:
+            normalized = cls._normalize_column_name(column)
+            lookup.setdefault(normalized, []).append(column)
+        return lookup
+
+    @classmethod
+    def _resolve_requested_column(
+        cls,
+        requested: str,
+        available_columns: List[str],
+        normalized_lookup: Dict[str, List[str]],
+    ) -> str:
+        if requested in available_columns:
+            return requested
+
+        lower_to_original = {column.lower(): column for column in available_columns}
+        lower_match = lower_to_original.get(requested.lower())
+        if lower_match:
+            return lower_match
+
+        normalized = cls._normalize_column_name(requested)
+        normalized_matches = normalized_lookup.get(normalized, [])
+        if len(normalized_matches) == 1:
+            return normalized_matches[0]
+        if len(normalized_matches) > 1:
+            raise ValueError(
+                f"Ambiguous requested column '{requested}'. Multiple matches found: {normalized_matches}."
+            )
+        raise KeyError(
+            f"Column '{requested}' not found in source data. "
+            f"Available columns: {available_columns}"
+        )
+
+    @classmethod
+    def _select_with_flexible_names(
+        cls,
+        pdf: pd.DataFrame,
+        requested_columns: List[str],
+        available_columns: List[str],
+        kind: str,
+    ) -> pd.DataFrame:
+        normalized_lookup = cls._build_normalized_lookup(available_columns)
+        resolved_pairs: List[tuple[str, str]] = []
+        missing: List[str] = []
+        for requested in requested_columns:
+            try:
+                actual = cls._resolve_requested_column(requested, available_columns, normalized_lookup)
+                resolved_pairs.append((requested, actual))
+            except KeyError:
+                missing.append(requested)
+
+        if missing:
+            raise KeyError(
+                f"Missing {kind} columns: {missing}. "
+                f"Available columns: {available_columns}"
+            )
+
+        selected_actual = [actual for _, actual in resolved_pairs]
+        selected = pdf[selected_actual].copy()
+        rename_map = {actual: requested for requested, actual in resolved_pairs}
+        selected.rename(columns=rename_map, inplace=True)
+        return selected
+
+    @classmethod
+    def _resolve_target_column(cls, target: str, available_columns: List[str]) -> str:
+        normalized_lookup = cls._build_normalized_lookup(available_columns)
+        return cls._resolve_requested_column(target, available_columns, normalized_lookup)
 
     @staticmethod
     def _apply_temporal_filters(
