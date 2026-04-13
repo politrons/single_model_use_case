@@ -13,18 +13,25 @@
 #enable_baseline_table: true
 
 schema: health_data_factory_forecast_framework
-table_name: ibnr_gold__years_5__start_2025_04_01__end_2026_03_01__policysubtype_systemid
+table_name: ibnr_gold__years_3__start_2025_04_01__end_2026_03_01__policysubtype_majoricdgroupingdescription
 feature_columns:
-- CumulativeAmountPaid
+- MajorICDGroupingDescription
 - PolicySubType
-- SystemID
-target_column: UltimateCharge
+- avg_processing_time_w1
+- avg_processing_time_w2
+- avg_processing_time_w3
+- avg_processing_time_w4
+- cumulative_amount_paid
+- cumulative_nb_claim_paid
+- cumulative_nb_invoice_paid
+- lag
+- nb_preauth
+- treatment_date_month
+target_column: ultimate_nb_invoice_paid
 auxiliary_columns:
-- CumulativeNumberClaimsPaid
-- CumulativeNumberInvoicesPaid
-- Lag
-- Segment
-- TreatmentDate
 - is_inference
+- segment
 - segment_key
-temporal_reference_column: TreatmentDate
+- treatment_date
+temporal_reference_column: treatment_date
+
