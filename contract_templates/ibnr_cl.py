@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 # -----------------------------------------------------------------------------
 
 CONFIG_OCCURRENCE_DATE_COL = "occurrence_date_col"
+CONFIG_LAG_COL = "lag_col"
 
 _DEFAULT_OCCURRENCE_DATE_COL = "treatment_date"
 
@@ -79,7 +80,7 @@ class ChainLadderModel(BaseEstimator, RegressorMixin):
         self.cumulative_identifier: str = _DEFAULT_CUMULATIVE_IDENTIFIER
         logger.info(f"cumulative identifier: '{self.cumulative_identifier}'")
 
-        self.lag_col: str = _DEFAULT_LAG_COL
+        self.lag_col: str = self.config.get(CONFIG_LAG_COL, _DEFAULT_LAG_COL)
         logger.info(f"lag column: '{self.lag_col}'")
 
         # --- learned state (populated by fit) ------------------------------

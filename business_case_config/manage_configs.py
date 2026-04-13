@@ -124,6 +124,7 @@ for model_info in ibnr_info['models_created']:
     model_contract_path = contracts_path / model_name
     model_contract_path.mkdir(exist_ok=True)
     features = model_info['feature_combination'].copy()
+    chain_ladder_required_columns = [temporal_reference_column, 'lag'] if model_type == 'chain_ladder' else []
     auxiliary_columns = [temporal_reference_column, 'segment', 'segment_key', 'is_inference']
     to_be_added_aux = [
         x
@@ -143,12 +144,18 @@ for model_info in ibnr_info['models_created']:
     }
     with open(model_path / "job_config.yml", "w", encoding="utf-8") as f:
         yaml.dump(job_config, f, sort_keys=False, default_flow_style=False, indent=2)
+    final_feature_columns = sorted(set(features + segmentation_columns + chain_ladder_required_columns))
+    final_auxiliary_columns = [
+        col
+        for col in sorted(set(auxiliary_columns + to_be_added_aux))
+        if col not in final_feature_columns
+    ]
     training_data_config = {
         'schema': source_schema,
         'table_name': model_table_source,
-        'feature_columns': sorted(set(features + segmentation_columns)),
+        'feature_columns': final_feature_columns,
         'target_column': target,
-        'auxiliary_columns': sorted(set(auxiliary_columns + to_be_added_aux)),
+        'auxiliary_columns': final_auxiliary_columns,
         'temporal_reference_column': temporal_reference_column,
     }
     with open(model_path / "training_data_config.yml", "w", encoding="utf-8") as f:
@@ -160,10 +167,15 @@ for model_info in ibnr_info['models_created']:
     }
     with open(model_path / "split_config.yml", "w", encoding="utf-8") as f:
         yaml.dump(split_config, f, sort_keys=False, default_flow_style=False, indent=2)
+    contract_numerical_features = (
+        sorted(set(features + chain_ladder_required_columns))
+        if model_type == 'chain_ladder'
+        else features
+    )
     generate_ibnr_contract(
         model_contract_path=model_contract_path,
         model_type=model_type,
-        numerical_features=features,
+        numerical_features=contract_numerical_features,
         segment_columns=segmentation_columns,
         model_config=model_config,
         temporal_reference_column=temporal_reference_column,

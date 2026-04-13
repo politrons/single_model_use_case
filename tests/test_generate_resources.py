@@ -133,3 +133,35 @@ def test_generate_inflation_contract_creates_model_contract_file(tmp_path):
     assert 'if step_model is not None and hasattr(step_model, "prepare_for_serialization"):' in content
     assert 'if nested_model is not None and hasattr(nested_model, "prepare_for_serialization"):' in content
     assert set(result["feature_columns"]) == {"YearMonthDate", "price_CPI", "cluster_id"}
+
+
+def test_generate_ibnr_chain_ladder_contract_includes_temporal_and_lag(tmp_path):
+    repo_root = Path(__file__).resolve().parents[1]
+    module_path = repo_root / "shared" / "contract_utilities" / "generate_contract.py"
+    spec = importlib.util.spec_from_file_location("generate_contract_test_module_4", module_path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["generate_contract_test_module_4"] = module
+    spec.loader.exec_module(module)
+
+    model_contract_path = tmp_path / "ibnr_chain_ladder_case"
+    module.generate_ibnr_contract(
+        model_contract_path=model_contract_path,
+        model_type="chain_ladder",
+        numerical_features=["cumulative_amount_paid"],
+        segment_columns=["PolicySubType", "SystemID"],
+        model_config={"occurrence_date_col": "treatment_date", "lag_col": "lag"},
+        temporal_reference_column="treatment_date",
+        random_state=42,
+        n_jobs=-1,
+        relative_path="",
+    )
+
+    generated_contract = model_contract_path / "training" / "model" / "model_contract_impl.py"
+    assert generated_contract.is_file()
+    content = generated_contract.read_text(encoding="utf-8")
+
+    assert "'occurrence_date_col': 'treatment_date'" in content
+    assert "'lag_col': 'lag'" in content
+    assert "'feature_columns': ['cumulative_amount_paid', 'treatment_date', 'lag']" in content
+    assert "_NUMERICAL_FEATURES: list[str] = ['cumulative_amount_paid', 'treatment_date', 'lag']" in content

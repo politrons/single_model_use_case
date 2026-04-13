@@ -278,23 +278,31 @@ def generate_ibnr_contract(
     n_jobs: int,
     relative_path: str,
 ) -> None:
+    model_config = model_config or {}
 
     mapping_model_contract_types = {"neural_network": "tensorflow", "chain_ladder": "chain_ladder"}
     model_contract_type = mapping_model_contract_types.get(model_type, "unknow!!!!!!!!!!!!")
 
     if model_type == "chain_ladder":
+        occurrence_date_col = str(model_config.get("occurrence_date_col") or temporal_reference_column)
+        lag_col = str(model_config.get("lag_col") or "lag")
+        chain_ladder_input_columns = list(dict.fromkeys([*numerical_features, occurrence_date_col, lag_col]))
+
         generate_model_contract(
             output_folder=model_contract_path / "training/model",
             model_type=model_contract_type,
-            numerical_features=numerical_features,
+            numerical_features=chain_ladder_input_columns,
             segment_columns=segment_columns,
-            config={"occurrence_date_col": model_config["occurrence_date_col"]},
+            config={
+                "occurrence_date_col": occurrence_date_col,
+                "lag_col": lag_col,
+            },
             random_state=random_state,
             base_params={"random_state": random_state},
             extra_params={
                 "random_state": random_state,
                 "temporal_reference_column": temporal_reference_column,
-                "feature_columns": numerical_features,
+                "feature_columns": chain_ladder_input_columns,
             },
             n_jobs=-1,
             relative_path=relative_path,
