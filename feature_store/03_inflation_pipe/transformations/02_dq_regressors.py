@@ -10,7 +10,7 @@ from functools import reduce
 from utilities.feature_engineering import (
     aggregate_and_process_claims_members_regressors,
 )
-from shared_utilities.utils import (
+from inflation_utilities.utils import (
     get_temporal_column,
 )
 
