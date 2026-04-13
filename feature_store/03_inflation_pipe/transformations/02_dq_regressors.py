@@ -10,6 +10,9 @@ from functools import reduce
 from utilities.feature_engineering import (
     aggregate_and_process_claims_members_regressors,
 )
+from shared_utilities.utils import (
+    get_config_file,
+)
 from inflation_utilities.utils import (
     get_temporal_column,
 )
@@ -27,7 +30,7 @@ from inflation_utilities.utils import (
 @dp.materialized_view
 @dp.expect_or_fail("missing_regressors", "invalid IS NOT TRUE")
 def dq_regressors_available():
-    dataset = spark.table("inflation_aggregated_portfolio")
+    dataset = dp.read("inflation_aggregated_portfolio")
     regressors = spark.table(get_config_file("inflation", "run_config")["regressors"])
 
     temporal_col = get_temporal_column()

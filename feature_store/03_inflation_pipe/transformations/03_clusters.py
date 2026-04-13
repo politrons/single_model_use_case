@@ -26,7 +26,7 @@ def create_cluster_table(cluster_info):
         name=cluster_info["table_name"],
     )
     def _():
-        dataset = spark.table("inflation_aggregated_portfolio")
+        dataset = dp.read("inflation_aggregated_portfolio")
         regressors = spark.table(get_config_file("inflation", "run_config")["regressors"])
 
         cluster_id = cluster_info["cluster_id"]
