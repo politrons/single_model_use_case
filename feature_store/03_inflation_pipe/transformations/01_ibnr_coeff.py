@@ -4,6 +4,27 @@ from pyspark.sql import Window as W
 from datetime import datetime
 
 
+def _rename_if_exists(df, source: str, target: str):
+    if source in df.columns and target not in df.columns:
+        return df.withColumnRenamed(source, target)
+    return df
+
+
+def _normalize_ibnr_columns(df):
+    # Compatibility with exports where fields are still CamelCase.
+    df = _rename_if_exists(df, "Segment", "segment")
+    df = _rename_if_exists(df, "FullExperiment", "full_experiment")
+    df = _rename_if_exists(df, "Target", "target")
+    df = _rename_if_exists(df, "TreatmentDate", "treatment_date")
+    df = _rename_if_exists(df, "CumulativeAmountPaid", "cumulative_amount_paid")
+    df = _rename_if_exists(df, "CumulativeNumberClaimsPaid", "cumulative_nb_claim_paid")
+    df = _rename_if_exists(df, "CumulativeNumberInvoicesPaid", "cumulative_nb_invoice_paid")
+    df = _rename_if_exists(df, "UltimateAmountPaidPredicted", "ultimate_amount_paid_predicted")
+    df = _rename_if_exists(df, "UltimateNumberClaimsPaidPredicted", "ultimate_nb_claim_paid_predicted")
+    df = _rename_if_exists(df, "UltimateNumberInvoicesPaidPredicted", "ultimate_nb_invoice_paid_predicted")
+    return df
+
+
 @dp.temporary_view
 def fall_back_ibnr():
 
@@ -31,7 +52,8 @@ def fall_back_ibnr():
 
 @dp.temporary_view
 def first_experiment():
-    return spark.table("ibnr_predictions").withColumn("_row_number", F.row_number().over(W.orderBy("full_experiment"))).where(F.col("_row_number") == 1).select("full_experiment")
+    df = _normalize_ibnr_columns(spark.table("ibnr_predictions"))
+    return df.withColumn("_row_number", F.row_number().over(W.orderBy("full_experiment"))).where(F.col("_row_number") == 1).select("full_experiment")
 
 
 @dp.temporary_view
@@ -45,6 +67,7 @@ def ibnr_predictions():
     except:
         df_ibnr = spark.table("fall_back_ibnr")
     finally:
+        df_ibnr = _normalize_ibnr_columns(df_ibnr)
         df_ibnr = df_ibnr.where(F.col("segment") != F.lit("no_segment"))
 
     return df_ibnr

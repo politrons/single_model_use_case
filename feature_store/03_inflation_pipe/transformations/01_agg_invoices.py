@@ -18,6 +18,12 @@ from utilities.feature_engineering import (
 )
 
 
+def _rename_if_exists(df, source: str, target: str):
+    if source in df.columns and target not in df.columns:
+        return df.withColumnRenamed(source, target)
+    return df
+
+
 @dp.temporary_view
 def fall_back_invoices():
 
@@ -58,8 +64,28 @@ def aggregated_invoices():
     finally:
         df_invoice = df_invoice.where(F.col("invoice_id") != F.lit("no_invoice"))
 
-    df_invoice = df_invoice.withColumn("year_month_date", F.trunc("admission_date", "MM"))
-    df_invoice = df_invoice.filter(F.col("claim_status").isin("P", "A", "S"))
+    # Compatibility with variants coming from different upstream tables.
+    df_invoice = _rename_if_exists(df_invoice, "AdmissionDate", "admission_date")
+    df_invoice = _rename_if_exists(df_invoice, "TreatmentDate", "treatment_date")
+    df_invoice = _rename_if_exists(df_invoice, "ReceptionDate", "reception_date")
+    df_invoice = _rename_if_exists(df_invoice, "ClaimStatus", "claim_status")
+
+    if "admission_date" in df_invoice.columns:
+        date_source = "admission_date"
+    elif "treatment_date" in df_invoice.columns:
+        date_source = "treatment_date"
+    elif "reception_date" in df_invoice.columns:
+        date_source = "reception_date"
+    else:
+        raise ValueError(
+            f"Could not find any date column for invoice aggregation. "
+            f"Expected one of: admission_date, treatment_date, reception_date. "
+            f"Available columns: {df_invoice.columns}"
+        )
+
+    df_invoice = df_invoice.withColumn("year_month_date", F.trunc(F.col(date_source), "MM"))
+    if "claim_status" in df_invoice.columns:
+        df_invoice = df_invoice.filter(F.col("claim_status").isin("P", "A", "S"))
 
     df_invoice_monthly_agg = (
         df_invoice.filter((F.col("payment_date").isNotNull()) & (F.col("payment_date") < date_to_filter_invoices))

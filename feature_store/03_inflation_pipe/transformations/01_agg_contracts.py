@@ -19,6 +19,12 @@ from utilities.feature_engineering import (
 )
 
 
+def _rename_if_exists(df, source: str, target: str):
+    if source in df.columns and target not in df.columns:
+        return df.withColumnRenamed(source, target)
+    return df
+
+
 @dp.temporary_view
 def fall_back_contracts():
 
@@ -53,6 +59,9 @@ def aggregated_contracts():
     except:
         df_contract = spark.table("fall_back_contracts")
     finally:
+        # Compatibility with contracts that still expose MemberID.
+        df_contract = _rename_if_exists(df_contract, "MemberID", "member_id")
+        df_contract = _rename_if_exists(df_contract, "MemberIDPK", "member_id")
         df_contract = df_contract.where(F.col("PolicyID") != F.lit("no_policy"))
 
     w = Window.partitionBy("PolicyID", "member_id").orderBy(F.col("VersionStartDate").desc())
@@ -62,15 +71,11 @@ def aggregated_contracts():
         F.when(F.col("is_latest"), F.current_timestamp()).otherwise(F.col("VersionEndDate")),
     ).drop("is_latest")
 
-    df_active_members = (
-        spark.table("active_members_preprocess")
-        .where(F.col("valid_row"))
-        .select(
-            "PolicyID",
-            "member_id",
-            "year_month_date",
-        )
-    ).withColumnRenamed("YearMonthDate", "year_month_date")
+    df_active_members = spark.table("active_members_preprocess").where(F.col("valid_row"))
+    df_active_members = _rename_if_exists(df_active_members, "MemberID", "member_id")
+    df_active_members = _rename_if_exists(df_active_members, "MemberIDPK", "member_id")
+    df_active_members = _rename_if_exists(df_active_members, "YearMonthDate", "year_month_date")
+    df_active_members = df_active_members.select("PolicyID", "member_id", "year_month_date")
 
     df_contract_monthly = df_contract_corrected.join(
         df_active_members,
