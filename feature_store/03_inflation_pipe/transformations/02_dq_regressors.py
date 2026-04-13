@@ -27,6 +27,22 @@ from inflation_utilities.utils import (
 ################################################################################################################################################
 
 
+def _normalize_temporal_column(df, temporal_col: str):
+    if temporal_col in df.columns:
+        return df
+    fallback_temporal_candidates = [
+        "YearMonthDate",
+        "year_month_date",
+        "TreatmentDate",
+        "treatment_date",
+        "SeenMonth",
+    ]
+    for candidate in fallback_temporal_candidates:
+        if candidate in df.columns:
+            return df.withColumnRenamed(candidate, temporal_col)
+    return df
+
+
 @dp.materialized_view
 @dp.expect_or_fail("missing_regressors", "invalid IS NOT TRUE")
 def dq_regressors_available():
@@ -34,6 +50,7 @@ def dq_regressors_available():
     regressors = spark.table(get_config_file("inflation", "run_config")["regressors"])
 
     temporal_col = get_temporal_column()
+    regressors = _normalize_temporal_column(regressors, temporal_col)
 
     df = aggregate_and_process_claims_members_regressors(
         df_agg=dataset,
@@ -43,9 +60,20 @@ def dq_regressors_available():
         df_regressors=regressors,
     )
 
-    df = df.select(*regressors.columns)
+    if temporal_col not in df.columns:
+        raise ValueError(
+            f"Temporal column '{temporal_col}' is missing after regressors join. "
+            f"Available columns: {df.columns}"
+        )
 
-    columns_to_check = [c for c in df.columns if c != get_temporal_column()]
-    df = df.select(*[F.col(c).isNull().alias(c) for c in columns_to_check], get_temporal_column()).withColumn("invalid", reduce(lambda a, b: a | b, (F.col(c) for c in columns_to_check)))
+    regressors_cols_in_df = [c for c in regressors.columns if c in df.columns]
+    columns_to_check = [c for c in regressors_cols_in_df if c != temporal_col]
+
+    invalid_expr = reduce(lambda a, b: a | b, (F.col(c) for c in columns_to_check)) if columns_to_check else F.lit(False)
+
+    df = (
+        df.select(*[F.col(c).isNull().alias(c) for c in columns_to_check], F.col(temporal_col))
+        .withColumn("invalid", invalid_expr)
+    )
 
     return df
