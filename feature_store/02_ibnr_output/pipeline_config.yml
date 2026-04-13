@@ -1,5 +1,5 @@
 name: ibnr_output
-#batch_run: true
+batch_run: true
 script_path: transformations/
 environments:
 - staging
@@ -15,29 +15,29 @@ custom_jobs:
       - ibnr_wrcu_g-op-job
       - ibnr_p1h4_z-op-job
       - ibnr_4nb33d-op-job
-      - ibnr_nxzaoe-op-job
+      - ibnr_ug4qal-op-job
       - ibnr_losy3b-op-job
       - ibnr_on2lku-op-job
-      - ibnr_v1_dyu-op-job
+      - ibnr_jdkwxn-op-job
       - ibnr_qd3bhn-op-job
       - ibnr_vqtdxq-op-job
       - ibnr_9b3mzo-op-job
       - ibnr_naqsvv-op-job
-      - ibnr_8yoiin-op-job
+      - ibnr_odflka-op-job
       - ibnr_1lmr_j-op-job
       - ibnr_xuv0ii-op-job
-      - ibnr_kqfoan-op-job
+      - ibnr_mar03l-op-job
       - ibnr_sntztm-op-job
       - ibnr_zcbn8a-op-job
       - ibnr_ttfmmi-op-job
       - ibnr_tnzgjz-op-job
-      - ibnr_nn4xfe-op-job
+      - ibnr_wfngdk-op-job
       - ibnr_y2ixc8-op-job
       - ibnr_snkuuj-op-job
-      - ibnr_9i7bmf-op-job
-      - ibnr_fy5zkt-op-job
-      - ibnr_awnt61-op-job
-      - ibnr_4l_b7d-op-job
+      - ibnr_z_u7bl-op-job
+      - ibnr_1s1brz-op-job
+      - ibnr_0vjkfp-op-job
+      - ibnr_5gyqtl-op-job
     cron_job: 0 0 3 2 * ?
     environments:
     - staging
@@ -50,29 +50,29 @@ custom_jobs:
       - ibnr_wrcu_g-monitor-job
       - ibnr_p1h4_z-monitor-job
       - ibnr_4nb33d-monitor-job
-      - ibnr_nxzaoe-monitor-job
+      - ibnr_ug4qal-monitor-job
       - ibnr_losy3b-monitor-job
       - ibnr_on2lku-monitor-job
-      - ibnr_v1_dyu-monitor-job
+      - ibnr_jdkwxn-monitor-job
       - ibnr_qd3bhn-monitor-job
       - ibnr_vqtdxq-monitor-job
       - ibnr_9b3mzo-monitor-job
       - ibnr_naqsvv-monitor-job
-      - ibnr_8yoiin-monitor-job
+      - ibnr_odflka-monitor-job
       - ibnr_1lmr_j-monitor-job
       - ibnr_xuv0ii-monitor-job
-      - ibnr_kqfoan-monitor-job
+      - ibnr_mar03l-monitor-job
       - ibnr_sntztm-monitor-job
       - ibnr_zcbn8a-monitor-job
       - ibnr_ttfmmi-monitor-job
       - ibnr_tnzgjz-monitor-job
-      - ibnr_nn4xfe-monitor-job
+      - ibnr_wfngdk-monitor-job
       - ibnr_y2ixc8-monitor-job
       - ibnr_snkuuj-monitor-job
-      - ibnr_9i7bmf-monitor-job
-      - ibnr_fy5zkt-monitor-job
-      - ibnr_awnt61-monitor-job
-      - ibnr_4l_b7d-monitor-job
+      - ibnr_z_u7bl-monitor-job
+      - ibnr_1s1brz-monitor-job
+      - ibnr_0vjkfp-monitor-job
+      - ibnr_5gyqtl-monitor-job
     - ibnr_output
     cron_job: 0 0/30 4-10 2 * ?
     environments:

@@ -44,7 +44,7 @@ def create_aggregated_table(
     return _
 
 
-aggregated_tables, _, _ = get_run_config()
+aggregated_tables, _, _ = get_run_config(relative_path="../../../")
 
 for agg in aggregated_tables.values():
     create_aggregated_table(table_name=agg["table_name"], this_segmentation=agg["segmentation_combination"], preauth_date_str=agg["preauth_date_str"], max_lags=agg["max_lags"])

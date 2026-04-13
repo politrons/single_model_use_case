@@ -19,7 +19,7 @@ from shared_utilities.data_quality import (
 
 # upper_limit_date = get_cut_off_date()   #### REMOVED AS REQUESTED BY CAMILLE
 
-all_filter_dates = [{"preauth_date": x["preauth_date"], "preauth_date_str": x["preauth_date_str"]} for x in get_inference_timeframe_ranges("ibnr")]
+all_filter_dates = [{"preauth_date": x["preauth_date"], "preauth_date_str": x["preauth_date_str"]} for x in get_inference_timeframe_ranges()]
 
 
 def create_preauthbase(preauth_date: date, preauth_date_str: str):

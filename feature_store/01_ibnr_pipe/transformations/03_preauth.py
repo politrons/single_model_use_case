@@ -13,7 +13,7 @@ from shared_utilities.data_quality import (
     get_all_flag_names,
 )
 
-all_preauth_dates = [x["preauth_date_str"] for x in get_inference_timeframe_ranges("ibnr")]
+all_preauth_dates = [x["preauth_date_str"] for x in get_inference_timeframe_ranges()]
 
 
 def create_preauth(preauth_date_str: str):

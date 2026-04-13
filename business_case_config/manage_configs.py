@@ -428,6 +428,7 @@ inflation_pipe_config = {
     'name': inflation_pipe_name,
     'script_path': "transformations/",
     # 'cron_job': "0 0 4 1 * ?",
+    'batch_run': True,
 }
 with open(inflation_pipe_location / "pipeline_config.yml", "w", encoding="utf-8") as f:
     yaml.dump(inflation_pipe_config, f, sort_keys=False, default_flow_style=False, indent=2)

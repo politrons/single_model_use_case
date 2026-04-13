@@ -11,7 +11,7 @@ from ibnr_utilities.utils import (
     get_run_config,
 )
 
-_, _, models_created = get_run_config()
+_, _, models_created =  get_run_config(relative_path="../../../")
 
 
 @dp.materialized_view()

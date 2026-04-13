@@ -50,7 +50,7 @@ def create_gold_table(
     return _
 
 
-_, gold_tables, _ = get_run_config()
+_, gold_tables, _ = get_run_config(relative_path="../../../")
 
 for gold in gold_tables.values():
     create_gold_table(
