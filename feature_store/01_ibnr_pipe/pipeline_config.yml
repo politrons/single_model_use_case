@@ -1,0 +1,4 @@
+name: ibnr_pipe
+script_path: transformations/
+cron_job: 0 0 2 1 * ?
+#batch_run: true
