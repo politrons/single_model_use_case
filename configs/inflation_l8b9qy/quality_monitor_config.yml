@@ -1,0 +1,8 @@
+baseline_enable: false
+schema_name: health_data_factory_forecast_framework
+table_name: inflation_gold
+granularities: 1 day,1 week
+match_columns:
+- year_month_date
+- cluster_id
+target_col: frequency_claim

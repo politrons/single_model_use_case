@@ -1,0 +1,8 @@
+schema: health_data_factory_forecast_framework
+table_name: inflation_gold
+feature_columns:
+- year_month_date
+- cluster_id
+target_column: frequency_claim
+auxiliary_columns: []
+temporal_reference_column: year_month_date

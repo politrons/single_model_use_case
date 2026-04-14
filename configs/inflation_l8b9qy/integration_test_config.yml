@@ -1,0 +1,7 @@
+columns:
+- year_month_date
+data:
+- '2024-01-01'
+prediction:
+  op: '>='
+  value: 0.0

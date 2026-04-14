@@ -1,0 +1,8 @@
+custom_jobs:
+  op-job:
+    trigger_stages:
+    - factory-job
+    - batch-job
+    environments:
+    - staging
+    - prod

@@ -1,0 +1,3 @@
+model_type: regressor
+targets: frequency_claim
+target_type: float

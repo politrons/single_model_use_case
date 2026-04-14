@@ -1,0 +1,3 @@
+split_strategy: time_series
+temporal_reference_column: year_month_date
+train_size: 0.8
