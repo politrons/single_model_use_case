@@ -71,6 +71,13 @@ class MultiClusterWrapper(BaseEstimator, RegressorMixin):
         extra_params: dict,
         n_jobs: int,
     ):
+        """
+        Store wrapper settings and initialize runtime state.
+
+        Parameters are intentionally kept as plain serializable attributes so
+        scikit-learn `get_params`/`set_params` can introspect the estimator.
+        Fitted artifacts are stored later in `self.models_` during `fit()`.
+        """
         self.numerical_features = numerical_features or []
         self.segment_columns = segment_columns or []
         self.model_factory = model_factory
@@ -97,6 +104,12 @@ class MultiClusterWrapper(BaseEstimator, RegressorMixin):
 
     @staticmethod
     def _cluster_key_aliases(key: tuple) -> list[str]:
+        """
+        Build equivalent string aliases for a segment key.
+
+        This allows matching per-segment configuration maps that may use
+        different key encodings (tuple string, joined key, or scalar key).
+        """
         aliases = {str(key)}
         aliases.add("__".join(str(x) for x in key))
         if len(key) == 1:
@@ -105,11 +118,65 @@ class MultiClusterWrapper(BaseEstimator, RegressorMixin):
 
     @staticmethod
     def _looks_like_segment_config_map(cfg: dict[str, Any]) -> bool:
+        """Return True when `cfg` appears to be a `segment -> config` dictionary."""
         if not cfg:
             return False
         return all(isinstance(v, dict) for v in cfg.values())
 
+    def _config_for_param_logging(self) -> Any:
+        """
+        Return a compact `config` representation safe for MLflow param logging.
+
+        MLflow model params have a max size constraint per value; large maps
+        such as `cluster_model_config_map` can exceed that limit. This method
+        keeps enough metadata for observability while preventing oversized
+        payloads.
+        """
+        cfg = self.config
+        if not isinstance(cfg, dict):
+            return cfg
+
+        cluster_map = cfg.get("cluster_model_config_map")
+        if isinstance(cluster_map, dict):
+            preview = [str(k) for k in list(cluster_map.keys())[:5]]
+            return {
+                "mode": "cluster_model_config_map",
+                "cluster_count": len(cluster_map),
+                "cluster_keys_preview": preview,
+                "default_model_config": cfg.get("default_model_config", {}),
+            }
+
+        if self._looks_like_segment_config_map(cfg):
+            preview = [str(k) for k in list(cfg.keys())[:5]]
+            return {
+                "mode": "segment_config_map",
+                "cluster_count": len(cfg),
+                "cluster_keys_preview": preview,
+            }
+
+        return cfg
+
+    def get_params(self, deep: bool = True) -> dict[str, Any]:
+        """
+        Expose estimator params with a compact `config` field for logging.
+
+        We keep the runtime behavior unchanged (the full config is still held
+        in `self.config`), but replace only the exported param view so tools
+        like MLflow do not attempt to log very large dictionaries verbatim.
+        """
+        params = super().get_params(deep=deep)
+        params["config"] = self._config_for_param_logging()
+        return params
+
     def _resolve_config_for_segment(self, key: tuple) -> dict[str, Any]:
+        """
+        Resolve the effective model config for one segment key.
+
+        Behavior:
+        - If `self.config` is a single global config, return it as-is.
+        - If `self.config` is a segment map, select the matching segment config.
+        - If no match exists, return an empty config and log a warning.
+        """
         cfg = self.config if isinstance(self.config, dict) else {}
         if not self._looks_like_segment_config_map(cfg):
             return cfg
@@ -286,7 +353,15 @@ class MultiClusterWrapper(BaseEstimator, RegressorMixin):
         return predictions.loc[df.index].values
 
     def compact_for_serialization(self) -> None:
-        """Best-effort memory compaction before pickling/logging."""
+        """
+        Run best-effort model compaction hooks before serialization.
+
+        The wrapper traverses direct estimators and common nested containers
+        (`named_steps`, `regressor`, `estimator`) and calls
+        `prepare_for_serialization()` when available. Failures are swallowed on
+        purpose because compaction is an optimization and must not block model
+        logging.
+        """
         for maybe_estimator in self.models_.values():
             if hasattr(maybe_estimator, "prepare_for_serialization"):
                 try:
