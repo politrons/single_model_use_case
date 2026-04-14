@@ -236,7 +236,10 @@ def aggregate_and_process_claims_members_regressors(
 
     # Join with regressors if provided
     if df_regressors is not None:
-        return _join_with_regressors(df_claims_members_agg, df_regressors, temporal_col)
+        df_claims_members_agg = _join_with_regressors(df_claims_members_agg, df_regressors, temporal_col)
 
-    df_claims_members_agg = df_claims_members_agg.withColumn("cluster_id", F.lit(cluster_id))
+    # Keep cluster_id in downstream tables used by training_data_config.
+    if cluster_id is not None and "cluster_id" not in df_claims_members_agg.columns:
+        df_claims_members_agg = df_claims_members_agg.withColumn("cluster_id", F.lit(cluster_id))
+
     return df_claims_members_agg.orderBy(temporal_col, ascending=True)

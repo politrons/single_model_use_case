@@ -49,7 +49,9 @@ class MultiClusterWrapper(BaseEstimator, RegressorMixin):
           - input conversion to tf.constant before predict
           - keras.backend.clear_session() after all segments are fitted
     config : dict
-        Forwarded to model_factory.
+        Either:
+        1) a single model config forwarded to every segment, or
+        2) a dict where keys are segment ids and values are per-segment configs.
     random_state : int
         Forwarded to model_factory.
     base_params : dict
@@ -66,7 +68,7 @@ class MultiClusterWrapper(BaseEstimator, RegressorMixin):
         segment_columns: list[str],
         model_factory: Callable,
         is_tensorflow: bool,
-        config: dict,
+        config: dict[str, Any],
         random_state: int,
         base_params: dict,
         extra_params: dict,
@@ -96,6 +98,33 @@ class MultiClusterWrapper(BaseEstimator, RegressorMixin):
         """Normalise a groupby key to a hashable tuple."""
         return key if isinstance(key, tuple) else (key,)
 
+    @staticmethod
+    def _cluster_key_aliases(key: tuple) -> list[str]:
+        aliases = {str(key)}
+        aliases.add("__".join(str(x) for x in key))
+        if len(key) == 1:
+            aliases.add(str(key[0]))
+        return [x for x in aliases if x]
+
+    @staticmethod
+    def _looks_like_segment_config_map(cfg: dict[str, Any]) -> bool:
+        if not cfg:
+            return False
+        return all(isinstance(v, dict) for v in cfg.values())
+
+    def _resolve_config_for_segment(self, key: tuple) -> dict[str, Any]:
+        cfg = self.config if isinstance(self.config, dict) else {}
+        if not self._looks_like_segment_config_map(cfg):
+            return cfg
+
+        for alias in self._cluster_key_aliases(key):
+            maybe_cfg = cfg.get(alias)
+            if isinstance(maybe_cfg, dict):
+                return maybe_cfg
+
+        logger.warning("No per-segment config found for key %s; using empty config.", key)
+        return {}
+
     def _fit_one_cluster(
         self,
         key: tuple,
@@ -103,8 +132,9 @@ class MultiClusterWrapper(BaseEstimator, RegressorMixin):
         y: pd.Series,
     ) -> tuple[tuple, Any]:
         """Build and fit a single cluster model; designed for parallel use."""
+        resolved_config = self._resolve_config_for_segment(key)
         model = self.model_factory(
-            self.config,
+            resolved_config,
             self.random_state,
             self.base_params,
             self.extra_params,
@@ -632,4 +662,3 @@ class ModelContractImpl(ModelContract):
 
 
 build = ModelContractImpl()
-

@@ -369,32 +369,26 @@ def generate_ibnr_contract(
 
 def generate_inflation_contract(
     model_contract_path: str | os.PathLike[str],
-    clusters: list[dict[str, Any]],
     temporal_reference_column: str,
     segment_column: str,
     random_state: int,
     n_jobs: int,
     relative_path: str,
+    cluster_model_config_map: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
-    cluster_model_config_map: dict[str, dict[str, Any]] = {}
+    resolved_cluster_model_config_map: dict[str, dict[str, Any]] = {}
     regressors: set[str] = set()
 
-    for cluster in clusters:
-        raw_cluster_id = cluster.get(segment_column, cluster.get("cluster_id"))
-        if raw_cluster_id is None:
-            continue
-        cluster_id = str(raw_cluster_id)
+    for raw_cluster_id, raw_model_cfg in cluster_model_config_map.items():
+        model_cfg = raw_model_cfg if isinstance(raw_model_cfg, dict) else {}
+        resolved_cluster_model_config_map[str(raw_cluster_id)] = model_cfg
 
-        model_cfg = cluster.get("model_config", {})
-        if not isinstance(model_cfg, dict):
-            model_cfg = {}
-        cluster_model_config_map[cluster_id] = model_cfg
-
+    for model_cfg in resolved_cluster_model_config_map.values():
         maybe_regressors = model_cfg.get("regressors")
         if isinstance(maybe_regressors, dict):
             regressors.update(str(k) for k in maybe_regressors.keys())
 
-    default_model_config = next(iter(cluster_model_config_map.values()), {})
+    default_model_config = next(iter(resolved_cluster_model_config_map.values()), {})
     feature_columns = [temporal_reference_column] + sorted(regressors) + [segment_column]
 
     generate_model_contract(
@@ -404,7 +398,7 @@ def generate_inflation_contract(
         segment_columns=[segment_column],
         config={
             "default_model_config": default_model_config,
-            "cluster_model_config_map": cluster_model_config_map,
+            "cluster_model_config_map": resolved_cluster_model_config_map,
         },
         random_state=random_state,
         base_params={"random_state": random_state},
@@ -422,5 +416,5 @@ def generate_inflation_contract(
         "feature_columns": feature_columns,
         "segment_columns": [segment_column],
         "regressor_columns": sorted(regressors),
-        "cluster_model_config_map": cluster_model_config_map,
+        "cluster_model_config_map": resolved_cluster_model_config_map,
     }

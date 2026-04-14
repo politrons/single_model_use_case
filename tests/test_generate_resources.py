@@ -95,22 +95,16 @@ def test_generate_inflation_contract_creates_model_contract_file(tmp_path):
     model_contract_path = tmp_path / "inflation_bc"
     result = module.generate_inflation_contract(
         model_contract_path=model_contract_path,
-        clusters=[
-            {
-                "cluster_id": "cluster_1",
-                "model_config": {
-                    "regressors": {"price_CPI": 10},
-                    "changepoint_prior_scale": 1.5,
-                },
+        cluster_model_config_map={
+            "cluster_1": {
+                "regressors": {"price_CPI": 10},
+                "changepoint_prior_scale": 1.5,
             },
-            {
-                "cluster_id": "cluster_2",
-                "model_config": {
-                    "regressors": None,
-                    "changepoint_prior_scale": 2.5,
-                },
+            "cluster_2": {
+                "regressors": None,
+                "changepoint_prior_scale": 2.5,
             },
-        ],
+        },
         temporal_reference_column="YearMonthDate",
         segment_column="cluster_id",
         random_state=42,
@@ -133,6 +127,42 @@ def test_generate_inflation_contract_creates_model_contract_file(tmp_path):
     assert 'if step_model is not None and hasattr(step_model, "prepare_for_serialization"):' in content
     assert 'if nested_model is not None and hasattr(nested_model, "prepare_for_serialization"):' in content
     assert set(result["feature_columns"]) == {"YearMonthDate", "price_CPI", "cluster_id"}
+
+
+def test_generate_inflation_contract_accepts_cluster_model_config_map(tmp_path):
+    repo_root = Path(__file__).resolve().parents[1]
+    module_path = repo_root / "shared" / "contract_utilities" / "generate_contract.py"
+    spec = importlib.util.spec_from_file_location("generate_contract_test_module_3b", module_path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["generate_contract_test_module_3b"] = module
+    spec.loader.exec_module(module)
+
+    model_contract_path = tmp_path / "inflation_direct_map"
+    cluster_cfg_map = {
+        "cluster_A": {
+            "regressors": {"price_CPI": 10},
+            "changepoint_prior_scale": 1.5,
+        },
+        "cluster_B": {
+            "regressors": {"price_CPI": 20, "gdp_index": 5},
+            "changepoint_prior_scale": 2.0,
+        },
+    }
+    result = module.generate_inflation_contract(
+        model_contract_path=model_contract_path,
+        temporal_reference_column="year_month_date",
+        segment_column="cluster_id",
+        random_state=42,
+        n_jobs=-1,
+        relative_path="",
+        cluster_model_config_map=cluster_cfg_map,
+    )
+
+    generated_contract = model_contract_path / "training" / "model" / "model_contract_impl.py"
+    assert generated_contract.is_file()
+    assert result["cluster_model_config_map"] == cluster_cfg_map
+    assert set(result["feature_columns"]) == {"year_month_date", "cluster_id", "price_CPI", "gdp_index"}
 
 
 def test_generate_ibnr_chain_ladder_contract_includes_temporal_and_lag(tmp_path):

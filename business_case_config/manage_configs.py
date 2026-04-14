@@ -251,7 +251,9 @@ for model_info in inflation_info['models_created'].values():
     model_name = model_info['model_name']
     target = model_info['target']
     model_table_source = model_info['table_name']
-    clusters = model_info.get('clusters', [])
+    cluster_model_config_map = model_info.get('model_config', {})
+    if not isinstance(cluster_model_config_map, dict):
+        raise ValueError(f"Expected dict for model_config in model '{model_name}', got {type(cluster_model_config_map).__name__}")
     print(f"Creating model {model_name} ...")
     model_path = configs_path / model_name
     model_path.mkdir(exist_ok=True)
@@ -259,12 +261,12 @@ for model_info in inflation_info['models_created'].values():
     model_contract_path.mkdir(exist_ok=True)
     inflation_contract_info = generate_inflation_contract(
         model_contract_path=model_contract_path,
-        clusters=clusters,
         temporal_reference_column=temporal_reference_column,
         segment_column=segment_column,
         random_state=random_state,
         n_jobs=-1,
         relative_path='../',
+        cluster_model_config_map=cluster_model_config_map,
     )
     feature_columns = inflation_contract_info['feature_columns']
     regressor_columns = inflation_contract_info['regressor_columns']
