@@ -1,7 +1,7 @@
 # Databricks notebook source
+import csv
 import logging
 import re
-import shutil
 from functools import reduce
 from pathlib import Path
 from pyspark.sql.types import ArrayType, BinaryType, MapType, StructType
@@ -23,7 +23,6 @@ output_mode = "workspace_files"
 # Your Workspace user folder (provided)
 workspace_user_dir = "/Workspace/Users/pablo.garcia.external@axa-uk.co.uk"
 workspace_output_dir = f"{workspace_user_dir}/exports"
-workspace_tmp_dir = f"{workspace_user_dir}/.tmp_payload_flat_exports"
 
 # DBFS fallback output directory
 dbfs_output_dir = "dbfs:/tmp/payload_flat_exports"
@@ -41,41 +40,52 @@ def _workspace_download_url(workspace_file_path: str) -> str:
     return "/workspace-files/" + workspace_file_path[len("/Workspace/"):]
 
 
-def _write_single_csv_part(df_union, prefix: str) -> Path:
+def _normalize_csv_value(value):
     """
-    Write a single CSV part to a Workspace-local temp folder and return part file path.
-
-    UC Shared access mode blocks writes to generic local paths like '/tmp'.
-    Therefore all local staging must stay under '/Workspace/...'.
+    Convert values to a CSV-safe scalar representation.
     """
-    tmp_dir = Path(workspace_tmp_dir) / f"{prefix}_payload_flat_csv_tmp"
-    shutil.rmtree(tmp_dir, ignore_errors=True)
-    tmp_dir.mkdir(parents=True, exist_ok=True)
+    if value is None:
+        return ""
+    if hasattr(value, "isoformat"):
+        try:
+            return value.isoformat()
+        except Exception:
+            return str(value)
+    return value
 
-    logger.info("Writing temporary CSV part for '%s' to %s", prefix, str(tmp_dir))
-    (
-        df_union.coalesce(1)
-        .write.mode("overwrite")
-        .option("header", True)
-        .csv(f"file:{tmp_dir}")
-    )
 
-    part_files = sorted(p for p in tmp_dir.iterdir() if p.suffix == ".csv")
-    if not part_files:
-        raise RuntimeError(f"No CSV part file generated for prefix '{prefix}'")
-    return part_files[0]
+def _write_workspace_csv_streaming(df_union, destination_file: Path, prefix: str) -> None:
+    """
+    Write CSV to Workspace Files using Python streaming.
+
+    This avoids Spark file commit protocol issues on Workspace local FS.
+    """
+    columns = list(df_union.columns)
+    logger.info("Streaming CSV rows for '%s' to %s", prefix, str(destination_file))
+
+    with destination_file.open("w", newline="", encoding="utf-8") as fh:
+        writer = csv.writer(fh)
+        writer.writerow(columns)
+
+        try:
+            iterator = df_union.toLocalIterator()
+        except Exception:
+            logger.warning("toLocalIterator() failed for '%s', falling back to collect()", prefix)
+            iterator = df_union.collect()
+
+        for row in iterator:
+            writer.writerow([_normalize_csv_value(row[col]) for col in columns])
 
 
 def _export_to_workspace_files(df_union, prefix: str) -> None:
     """
     Export CSV to Workspace Files under the configured user directory.
     """
-    part_file = _write_single_csv_part(df_union, prefix)
     destination_dir = Path(workspace_output_dir)
     destination_dir.mkdir(parents=True, exist_ok=True)
     destination_file = destination_dir / f"{prefix}_payload_flat.csv"
+    _write_workspace_csv_streaming(df_union, destination_file, prefix)
 
-    shutil.copyfile(part_file, destination_file)
     logger.info("CSV saved to Workspace Files: %s", str(destination_file))
 
     download_url = _workspace_download_url(str(destination_file))
