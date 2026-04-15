@@ -22,12 +22,10 @@ output_mode = "workspace_files"
 # Your Workspace user folder (provided)
 workspace_user_dir = "/Workspace/Users/pablo.garcia.external@axa-uk.co.uk"
 workspace_output_dir = f"{workspace_user_dir}/exports"
+workspace_tmp_dir = f"{workspace_user_dir}/.tmp_payload_flat_exports"
 
 # DBFS fallback output directory
 dbfs_output_dir = "dbfs:/tmp/payload_flat_exports"
-
-# Temporary local folder used to produce a single CSV file per prefix
-tmp_local_base_dir = "/tmp/payload_flat_exports"
 
 # COMMAND ----------
 
@@ -44,9 +42,12 @@ def _workspace_download_url(workspace_file_path: str) -> str:
 
 def _write_single_csv_part(df_union, prefix: str) -> Path:
     """
-    Write a single CSV part to local driver temp storage and return part file path.
+    Write a single CSV part to a Workspace-local temp folder and return part file path.
+
+    UC Shared access mode blocks writes to generic local paths like '/tmp'.
+    Therefore all local staging must stay under '/Workspace/...'.
     """
-    tmp_dir = Path(tmp_local_base_dir) / f"{prefix}_payload_flat_csv_tmp"
+    tmp_dir = Path(workspace_tmp_dir) / f"{prefix}_payload_flat_csv_tmp"
     shutil.rmtree(tmp_dir, ignore_errors=True)
     tmp_dir.mkdir(parents=True, exist_ok=True)
 
