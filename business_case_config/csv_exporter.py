@@ -1,6 +1,9 @@
-import re
+# Databricks notebook source
 import logging
+import re
 from functools import reduce
+
+# COMMAND ----------
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("payload_flat_export")
@@ -8,33 +11,32 @@ logger = logging.getLogger("payload_flat_export")
 catalog = "your_catalog"
 schema = "your_schema"
 
+# COMMAND ----------
+
 def export_payload_csv(prefix: str) -> None:
     pattern = re.compile(rf"^{prefix}_.*_payload_flat$")
 
     logger.info("Discovering tables for prefix '%s' in %s.%s", prefix, catalog, schema)
     tables = [
-        r.tableName
-        for r in spark.sql(f"SHOW TABLES IN {catalog}.{schema}").collect()
-        if pattern.match(r.tableName)
+        row.tableName
+        for row in spark.sql(f"SHOW TABLES IN {catalog}.{schema}").collect()
+        if pattern.match(row.tableName)
     ]
     if not tables:
         logger.warning("No tables found for prefix '%s'", prefix)
         return
 
     logger.info("Found %d tables for prefix '%s'", len(tables), prefix)
-    dfs = [spark.table(f"{catalog}.{schema}.{t}") for t in tables]
-    df_union = reduce(lambda a, b: a.unionByName(b, allowMissingColumns=True), dfs)
+    dfs = [spark.table(f"{catalog}.{schema}.{table_name}") for table_name in tables]
+    df_union = reduce(lambda left, right: left.unionByName(right, allowMissingColumns=True), dfs)
 
-    # Show a preview in notebook
     logger.info("Showing preview for '%s'", prefix)
     display(df_union.limit(200))
 
-    # Write merged table (optional)
     target_table = f"{catalog}.{schema}.{prefix}_payload_flat_all"
     logger.info("Saving merged table: %s", target_table)
     df_union.write.mode("overwrite").saveAsTable(target_table)
 
-    # Write single CSV to temp folder
     tmp_dir = f"dbfs:/tmp/{prefix}_payload_flat_csv_tmp"
     logger.info("Writing CSV to temp path: %s", tmp_dir)
     (
@@ -44,21 +46,22 @@ def export_payload_csv(prefix: str) -> None:
         .csv(tmp_dir)
     )
 
-    # Move CSV part file to FileStore for direct browser download
-    part_file = next(f.path for f in dbutils.fs.ls(tmp_dir) if f.name.endswith(".csv"))
+    part_file = next(file_info.path for file_info in dbutils.fs.ls(tmp_dir) if file_info.name.endswith(".csv"))
     final_dbfs_path = f"dbfs:/FileStore/exports/{prefix}_payload_flat.csv"
     dbutils.fs.cp(part_file, final_dbfs_path, True)
 
-    # Create download link in notebook output
     download_url = f"/files/exports/{prefix}_payload_flat.csv"
     logger.info("Download URL for '%s': %s", prefix, download_url)
-    displayHTML(f"""
+    displayHTML(
+        f"""
     <div style="padding:8px;border:1px solid #ddd;border-radius:8px;">
       <b>{prefix.upper()} CSV ready</b><br/>
       <a href="{download_url}" target="_blank" download>Download {prefix}_payload_flat.csv</a>
     </div>
-    """)
+    """
+    )
 
-# Run for both datasets
-for p in ["ibnr", "inflation"]:
-    export_payload_csv(p)
+# COMMAND ----------
+
+for prefix_name in ["ibnr", "inflation"]:
+    export_payload_csv(prefix_name)
