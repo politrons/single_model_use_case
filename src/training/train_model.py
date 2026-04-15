@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import inspect
 import json
 import logging
@@ -36,6 +37,7 @@ if "databricks_mlops_stack" not in sys.modules:
 
 from databricks_mlops_stack.training.data.training_data_config import TrainingDataConfig  # type: ignore # noqa
 from databricks_mlops_stack.training.model.model_config import ModelContractConfig  # type: ignore # noqa
+
 from databricks_mlops_stack.training.model.predict_and_proba_wrapper import (  # type: ignore # noqa
     PredictAndProbaWrapper,
     to_prediction_series as _to_prediction_series,
@@ -92,6 +94,7 @@ class Config:
     training_data_config: dict[str, Any]
     model_config: dict[str, Any]
     model_card_path: str
+    model_contract: str = ""
     metrics_latency_table: str = ""
     quality_monitor_config: dict[str, Any] = field(default_factory=dict)
     validation_config: dict[str, Any] = field(default_factory=dict)
@@ -186,8 +189,35 @@ def _split_predict_output(raw_output: Any) -> tuple[Any, Any | None]:
     return raw_output, None
 
 
-def _load_model_impl(cfg):
-    LOG.info("Loading model from config....")
+def _load_model_impl_from_contract(path: str) -> Any:
+    contract_path = Path(path).expanduser().resolve()
+    if not contract_path.is_file():
+        raise FileNotFoundError(f"Model contract file not found: {contract_path}")
+
+    module_name = f"generated_model_contract_{abs(hash(str(contract_path)))}"
+    spec = importlib.util.spec_from_file_location(module_name, contract_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Could not create module spec from {contract_path}")
+
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+
+    build = getattr(module, "build", None)
+    if build is None:
+        raise AttributeError(f"Generated contract module '{contract_path}' does not expose 'build'")
+    if not hasattr(build, "get_model"):
+        raise AttributeError(f"Generated contract build object '{contract_path}' has no 'get_model'")
+    if not hasattr(build, "log_model"):
+        raise AttributeError(f"Generated contract build object '{contract_path}' has no 'log_model'")
+    return build
+
+
+def _load_model_impl(cfg: Config) -> Any:
+    if (cfg.model_contract or "").strip():
+        LOG.info("Loading model contract from generated file: %s", cfg.model_contract)
+        return _load_model_impl_from_contract(cfg.model_contract)
+    LOG.info("Loading model from default model config implementation....")
     return ModelContractConfig()
 
 
@@ -307,10 +337,11 @@ def _append_latency_metrics(
 def _register_model(cfg: Config,
                     input_example,
                     model,
-                    model_impl: ModelContractConfig | Any,
+                    model_impl: Any,
                     predict_ms: float,
                     signature: ModelSignature,
-                    train_ms: float) -> str:
+                    train_ms: float,
+                    model_args: dict[str, Any]) -> str:
     with mlflow.start_run(run_name=f"train_{cfg.env}") as run:
         run_id = run.info.run_id
         mlflow.log_param("env", cfg.env)
@@ -318,7 +349,7 @@ def _register_model(cfg: Config,
         mlflow.log_metric("train_time_ms", float(train_ms))
         mlflow.log_metric("predict_time_ms", float(predict_ms))
         mlflow.log_params(get_non_default_pipeline_params(_model_for_param_logging(model)))
-        model_impl.log_model(model, cfg.model_name, signature, input_example, cfg.model_config)
+        model_impl.log_model(model, cfg.model_name, signature, input_example, model_args)
     return run_id
 
 
@@ -459,8 +490,8 @@ def run_template(cfg: Config) -> tuple[str, int, float, float]:
     # Split
     train_test_split_impl = SplitContractConfig()
     if maybe_features:
-
-        final_split_selection = maybe_features
+        # Create list of unique columns by removing duplicates between maybe_features and auxiliary_columns
+        final_split_selection = list(dict.fromkeys(maybe_features + auxiliary_columns))
 
         if cfg.split_config.get(CONFIG_SPLIT_STRATEGY) == SPLIT_TIME:
             LOG.info(f"'{CONFIG_SPLIT_STRATEGY}' set to '{SPLIT_TIME}': verifying training data config params")
@@ -473,18 +504,50 @@ def run_template(cfg: Config) -> tuple[str, int, float, float]:
             if final_temporal_column:
                 LOG.info(f"'{CONFIG_TEMPORAL_COLUMN_NAME}' set: '{final_temporal_column}'.")
                 cfg.model_config[CONFIG_TEMPORAL_COLUMN_NAME] = final_temporal_column
-                if final_temporal_column not in maybe_features:
+                if final_temporal_column not in final_split_selection:
                     LOG.info(f"Column '{final_temporal_column}' not on features, adding to selection")
                     final_split_selection.append(final_temporal_column)
-                    maybe_discarded = cfg.model_config.get(CONFIG_SECTION_DISCARDED_FEATURES, [])
-                    cfg.model_config[CONFIG_SECTION_DISCARDED_FEATURES] = list(set(maybe_discarded + [final_temporal_column]))
+                if user_provided_model_config:
+                    LOG.info(f"'{CONFIG_TEMPORAL_COLUMN_NAME}' set: '{final_temporal_column}'.")
+                    cfg.model_config[CONFIG_TEMPORAL_COLUMN_NAME] = final_temporal_column
+                    if final_temporal_column not in maybe_features:
+                        LOG.info(
+                            f"Column '{final_temporal_column}' not on features, adding to discarded features"
+                        )
+                        maybe_discarded = cfg.model_config.get(CONFIG_SECTION_DISCARDED_FEATURES, [])
+                        if final_temporal_column not in maybe_discarded:
+                            maybe_discarded.append(final_temporal_column)
+                        cfg.model_config[CONFIG_SECTION_DISCARDED_FEATURES] = list(
+                            set(maybe_discarded + [final_temporal_column]))
 
         x_pdf = x_pdf[final_split_selection]
 
     all_split_set = train_test_split_impl.split(x_pdf, y_pdf, cfg.split_config)
 
+    # Enforece string for JSON compability
+    for k, v in all_split_set.items():
+        v_shape = v.shape
+        if len(v_shape) == 2:
+            all_split_set[k] = PayloadUtils.enforce_datetime_to_string(v)
+
+    # Remove auxiliary columns after split (they were only needed for split logic)
+    # But keep any auxiliary columns that are also listed in maybe_features (feature columns)
+    if auxiliary_columns:
+        cols_to_drop = (
+            [c for c in auxiliary_columns if c not in maybe_features]
+            if maybe_features
+            else auxiliary_columns
+        )
+        if cols_to_drop:
+            LOG.info(f"Removing auxiliary columns after split: {cols_to_drop}")
+            for split_key in [X_TRAIN, X_VAL, X_TEST]:
+                if split_key in all_split_set:
+                    all_split_set[split_key] = all_split_set[split_key].drop(columns=cols_to_drop, errors="ignore")
+        retained = [c for c in auxiliary_columns if c not in cols_to_drop]
+        if retained:
+            LOG.info(f"Retaining auxiliary columns that are also feature columns: {retained}")
+
     # Train Model
-    model_impl = _load_model_impl(cfg)
     maybe_random_state_from_split = cfg.split_config.get(CONFIG_RANDOM_STATE)
     maybe_random_state_from_model = cfg.model_config.get(CONFIG_RANDOM_STATE)
     if maybe_random_state_from_split and not maybe_random_state_from_model:
@@ -494,8 +557,8 @@ def run_template(cfg: Config) -> tuple[str, int, float, float]:
     _model_call_args[CONFIG_DEFAULT_CATALOG_NAME] = cfg.catalog_name
     _model_call_args[CONFIG_ENV] = cfg.env
 
+    model_impl = _load_model_impl(cfg)
     model = model_impl.get_model(_model_call_args)
-    model = _maybe_wrap_model_for_prediction_method(cfg, model)
     model, train_ms = _time_fit(
         model=model,
         X=all_split_set[X_TRAIN],
@@ -510,7 +573,16 @@ def run_template(cfg: Config) -> tuple[str, int, float, float]:
 
     # Log & register
     mlflow.end_run()
-    run_id = _register_model(cfg, input_example, model, model_impl, predict_ms, signature, train_ms)
+    run_id = _register_model(
+        cfg=cfg,
+        input_example=input_example,
+        model=model,
+        model_impl=model_impl,
+        predict_ms=predict_ms,
+        signature=signature,
+        train_ms=train_ms,
+        model_args=_model_call_args,
+    )
 
     _register_model_card(cfg)
 
@@ -540,6 +612,7 @@ def _parse_args(argv: list[str]) -> Config:
     ap.add_argument("--databricks_mlops_stack_version", default="")
     ap.add_argument("--training_data_config")
     ap.add_argument("--model_config")
+    ap.add_argument("--model_contract", default="")
     ap.add_argument("--model_tuning_config")
     ap.add_argument("--model_card_path", default="")
     ap.add_argument("--metrics_latency_table", default="")
@@ -573,6 +646,7 @@ def _parse_args(argv: list[str]) -> Config:
                     training_data_config=training_data_config,
                     model_config=model_config,
                     model_card_path=args.model_card_path,
+                    model_contract=(args.model_contract or "").strip(),
                     split_config=YamlUtils.yaml_to_dict(split_config_str) if split_config_str else {},
                     metrics_latency_table=args.metrics_latency_table.strip(),
                     quality_monitor_config=YamlUtils.yaml_to_dict(quality_monitor_config_str) if quality_monitor_config_str else {},

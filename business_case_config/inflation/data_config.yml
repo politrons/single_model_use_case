@@ -1,0 +1,25 @@
+tables:
+  # external_regressors:
+  #   full_name: axahealth_dataplatform_pr_gold.data_science.actuarial_ml_external_regressors
+  #   primary_keys:
+  #   - SeenMonth
+  #   - YearMonthDate
+  monthly_contracts:
+    primary_keys:
+    - policy_holder_id
+    - certificate_id
+    - dependent_id
+    - benefit_type
+    - benefit_code
+    - year_month_date
+  inflation_aggregated_portfolio:
+    primary_keys:
+    - year_month_date
+    - benefit_macro
+    - glm_group
+    - network
+    - richness_coverage
+    - gender
+    - location
+    - age_bucket
+    - icd_group

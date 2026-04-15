@@ -16,9 +16,7 @@ from mlflow import MlflowClient  # type: ignore # noqa
 from pyspark.sql import SparkSession  # type: ignore # noqa
 
 # Allow running this script directly from workspace source without installing a wheel.
-_THIS_FILE = globals().get("__file__") or (
-    inspect.currentframe().f_code.co_filename if inspect.currentframe() else ""
-)
+_THIS_FILE = globals().get("__file__") or (inspect.currentframe().f_code.co_filename if inspect.currentframe() else "")
 if not _THIS_FILE:
     raise RuntimeError("Could not resolve script file path to initialize source imports.")
 _SRC_ROOT = Path(_THIS_FILE).resolve().parents[1]
@@ -83,7 +81,14 @@ def _resolve_model_uri(cfg: Config) -> str:
     alias = (cfg.model_alias or "").strip()
     if alias:
         try:
-            mv = MlflowClient().get_model_version_by_alias(cfg.model_name, alias)
+            client = MlflowClient()
+            versions = client.search_model_versions(
+                "name = 'my_model'",
+                max_results=1,
+                order_by=["version DESC"],
+            )
+            latest = versions[0]
+            mv = client.get_model_version(cfg.model_name, latest)
             return f"models:/{cfg.model_name}/{mv.version}"
         except Exception:
             LOG.info("Alias '%s' not found for model '%s'. Falling back to latest version.", alias, cfg.model_name)
@@ -163,13 +168,7 @@ def _split_predict_output(raw_output: Any) -> tuple[Any, Any | None]:
         pred_col = lower_cols.get("prediction")
         if pred_col is None:
             pred_col = raw_output.columns[0] if len(raw_output.columns) > 0 else None
-        prob_col = (
-            lower_cols.get("prediction_proba")
-            or lower_cols.get("probability")
-            or lower_cols.get("probabilities")
-            or lower_cols.get("proba")
-            or lower_cols.get("predict_proba")
-        )
+        prob_col = lower_cols.get("prediction_proba") or lower_cols.get("probability") or lower_cols.get("probabilities") or lower_cols.get("proba") or lower_cols.get("predict_proba")
         if prob_col is None and pred_col is not None and len(raw_output.columns) == 2:
             remaining = [c for c in raw_output.columns if c != pred_col]
             prob_col = remaining[0] if remaining else None
@@ -224,7 +223,7 @@ def _build_predictions_df(
 
 def run_template(cfg: Config) -> tuple[str, int]:
     spark = SparkSession.builder.getOrCreate()
-    mlflow.set_registry_uri("databricks-uc")
+    mlflow.set_registry_uri("databricks")
     if cfg.experiment_name:
         mlflow.set_experiment(cfg.experiment_name)
 
@@ -254,14 +253,7 @@ def run_template(cfg: Config) -> tuple[str, int]:
         raise ValueError("No split DataFrames found to predict (expected keys starting with 'X_').")
 
     final_pdf = pd.concat(output_frames, ignore_index=True)
-    (
-        spark.createDataFrame(final_pdf)
-        .write
-        .mode("append")
-        .format("delta")
-        .option("mergeSchema", "true")
-        .saveAsTable(cfg.output_table)
-    )
+    (spark.createDataFrame(final_pdf).write.mode("append").format("delta").option("mergeSchema", "true").saveAsTable(cfg.output_table))
     LOG.info("Wrote %d rows into %s", len(final_pdf), cfg.output_table)
     return model_uri, len(final_pdf)
 
@@ -304,4 +296,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     main()
-

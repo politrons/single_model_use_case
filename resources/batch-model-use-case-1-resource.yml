@@ -7,17 +7,18 @@ resources:
   jobs:
     model_use_case_1-batch-job:
       name: ${bundle.target}-${bundle.name}-model_use_case_1-batch-job
-      job_clusters:
-        - job_cluster_key: Job_cluster
-          new_cluster:
-            spark_version: 16.4.x-scala2.12
-            data_security_mode: SINGLE_USER
-            runtime_engine: STANDARD
-            num_workers: 1
+      # job_clusters:
+      #   - job_cluster_key: Job_cluster
+      #     new_cluster:
+      #       spark_version: 16.4.x-scala2.12
+      #       data_security_mode: SINGLE_USER
+      #       runtime_engine: STANDARD
+      #       num_workers: 1
 
       tasks:
         - task_key: Batch
-          job_cluster_key: Job_cluster
+          # job_cluster_key: Job_cluster
+          existing_cluster_id: 0327-102951-8jsry10r
           libraries:
             - pypi:
                 package: mlflow==3.0.1
@@ -34,7 +35,7 @@ resources:
               - "--catalog_name"
               - "${var.catalog_name}"
               - "--model_name"
-              - "${var.catalog_name}.${bundle.name}.model_use_case_1"
+              - "model_use_case_1"
               - "--experiment_name"
               - "/Users/${workspace.current_user.userName}/${bundle.target}-model_use_case_1_exp"
               - "--model_alias"

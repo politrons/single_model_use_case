@@ -354,7 +354,7 @@ def run_template(cfg: Config) -> tuple[str, str]:
 
     # MLflow setup
     mlflow.set_experiment(cfg.experiment_name)
-    mlflow.set_registry_uri("databricks-uc")
+    mlflow.set_registry_uri("databricks")
 
     # Resolve model identity
     model_name, model_version = _resolve_model_identity(cfg)
@@ -401,8 +401,8 @@ def run_template(cfg: Config) -> tuple[str, str]:
             _log_metrics_artifact(cfg.model_name, eval_result)
 
         LOG.info("Validation checks passed. Assigning 'challenger' alias to version %s.", model_version)
-        client = MlflowClient(registry_uri="databricks-uc")
-        client.set_registered_model_alias(model_name, "challenger", str(model_version))
+        # client = MlflowClient(registry_uri="databricks")
+        # client.set_registered_model_alias(model_name, "challenger", str(model_version))
 
         # Persist tall metrics table if requested
         if cfg.metrics_table and eval_result is not None:

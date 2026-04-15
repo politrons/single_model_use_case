@@ -1,0 +1,7 @@
+timeframe_info:
+  use_custom_ranges: true
+  training_begin: '2020-01-01'
+  training_end: '2026-03-01'
+  nb_forecast_years: 3
+is_to_compensate_ibnr_on_invoices_view: false
+clusters_table: 'inflation_clusters'

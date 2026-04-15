@@ -1,0 +1,32 @@
+tables:
+  mapping:
+    full_name: hive_metastore.default.df_mapping
+    primary_keys:
+    - benefit_type
+    - benefit_code
+  claims_starter:
+    full_name: hive_metastore.default.df_claims
+    primary_keys:
+    - claim_id
+    - benefit_type
+    - benefit_code
+  contracts_starter:
+    full_name: hive_metastore.default.df_contracts_filtered
+    primary_keys:
+    - policy_holder_id
+    - certificate_id
+    - dependent_id
+    - benefit_type
+    - benefit_code
+    - effective_start_date
+  contracts:
+    primary_keys:
+    - policy_holder_id
+    - certificate_id
+    - dependent_id
+    - benefit_type
+    - benefit_code
+    - effective_start_date
+  claims:
+    primary_keys:
+    - invoice_id

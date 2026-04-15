@@ -1,6 +1,6 @@
-catalog: 'axainsurance_claims_dv_ml'
-schema: 'sanity_build'
-table_name: 'sanity_build_fs'
+catalog: 'hive_metastore'
+schema: 'default'
+table_name: 'sanity_build'
 feature_columns:
   - subscription_length
   - vehicle_age

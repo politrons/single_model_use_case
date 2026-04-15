@@ -18,7 +18,7 @@ def deploy(model_uri: str, env: str) -> None:
     # Expect models:/<name>/<version> -> ["models:", "<name>", "<version>"]
     _, model_name, version = model_uri.split("/")
 
-    client = MlflowClient(registry_uri="databricks-uc")
+    client = MlflowClient(registry_uri="databricks")
     mv = client.get_model_version(model_name, version)
 
     target_alias = "champion"
