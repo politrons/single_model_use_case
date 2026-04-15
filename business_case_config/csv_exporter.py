@@ -4,6 +4,7 @@ import re
 import shutil
 from functools import reduce
 from pathlib import Path
+from pyspark.sql.types import ArrayType, BinaryType, MapType, StructType
 
 # COMMAND ----------
 
@@ -113,6 +114,35 @@ def _export_to_dbfs(df_union, prefix: str) -> None:
     )
 
 
+def _drop_unsupported_csv_columns(df_union, prefix: str):
+    """
+    Drop columns that CSV datasource cannot serialize (nested/complex types).
+    """
+    unsupported_types = (MapType, StructType, ArrayType, BinaryType)
+    unsupported = [
+        (field.name, field.dataType.simpleString())
+        for field in df_union.schema.fields
+        if isinstance(field.dataType, unsupported_types)
+    ]
+
+    if not unsupported:
+        return df_union
+
+    unsupported_names = {name for name, _ in unsupported}
+    logger.warning(
+        "Dropping %d unsupported CSV columns for '%s': %s",
+        len(unsupported),
+        prefix,
+        ", ".join([f"{name} ({dtype})" for name, dtype in unsupported]),
+    )
+
+    supported_columns = [field.name for field in df_union.schema.fields if field.name not in unsupported_names]
+    if not supported_columns:
+        raise ValueError(f"After dropping unsupported CSV columns, no columns remain for '{prefix}'.")
+
+    return df_union.select(*supported_columns)
+
+
 def export_payload_csv(prefix: str) -> None:
     """
     Discover tables by prefix, union all rows, preview in notebook, and export CSV.
@@ -133,14 +163,15 @@ def export_payload_csv(prefix: str) -> None:
     logger.info("Found %d tables for '%s'", len(tables), prefix)
     dfs = [spark.table(f"{catalog}.{schema}.{table_name}") for table_name in tables]
     df_union = reduce(lambda left, right: left.unionByName(right, allowMissingColumns=True), dfs)
+    df_csv = _drop_unsupported_csv_columns(df_union, prefix)
 
     logger.info("Showing preview for '%s'", prefix)
-    display(df_union.limit(200))
+    display(df_csv.limit(200))
 
     if output_mode == "workspace_files":
-        _export_to_workspace_files(df_union, prefix)
+        _export_to_workspace_files(df_csv, prefix)
     elif output_mode == "dbfs":
-        _export_to_dbfs(df_union, prefix)
+        _export_to_dbfs(df_csv, prefix)
     else:
         raise ValueError(f"Unsupported output_mode '{output_mode}'. Use 'workspace_files' or 'dbfs'.")
 
