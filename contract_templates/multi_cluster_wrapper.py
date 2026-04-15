@@ -15,9 +15,13 @@ from typing import Any
 
 import numpy as np  # type: ignore # noqa
 import pandas as pd  # type: ignore # noqa
-import psutil  # type: ignore # noqa
 from joblib import Parallel, delayed  # type: ignore # noqa
 from sklearn.base import BaseEstimator, RegressorMixin  # type: ignore # noqa
+
+try:
+    import psutil  # type: ignore # noqa
+except Exception:  # pragma: no cover - optional dependency in serving
+    psutil = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
 
@@ -327,7 +331,7 @@ class MultiClusterWrapper(BaseEstimator, RegressorMixin):
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Could not set TF eager mode: %s", exc)
 
-        process = psutil.Process()
+        process = psutil.Process() if psutil is not None else None
         predictions = pd.Series(index=df.index, dtype=float)
 
         if self.is_tensorflow:
@@ -344,8 +348,9 @@ class MultiClusterWrapper(BaseEstimator, RegressorMixin):
             preds = self.models_[seg_key].predict(X)
             predictions.loc[group.index] = preds
 
-            mem_gb = process.memory_info().rss / 1024**3
-            logger.info("segment %s — Memory: %.2f GB", seg_key, mem_gb)
+            if process is not None:
+                mem_gb = process.memory_info().rss / 1024**3
+                logger.info("segment %s — Memory: %.2f GB", seg_key, mem_gb)
 
         gc.collect()
 
