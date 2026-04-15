@@ -26,16 +26,11 @@ def export_payload_csv(prefix: str) -> None:
         logger.warning("No tables found for prefix '%s'", prefix)
         return
 
-    logger.info("Found %d tables for prefix '%s'", len(tables), prefix)
     dfs = [spark.table(f"{catalog}.{schema}.{table_name}") for table_name in tables]
     df_union = reduce(lambda left, right: left.unionByName(right, allowMissingColumns=True), dfs)
 
     logger.info("Showing preview for '%s'", prefix)
     display(df_union.limit(200))
-
-    target_table = f"{catalog}.{schema}.{prefix}_payload_flat_all"
-    logger.info("Saving merged table: %s", target_table)
-    df_union.write.mode("overwrite").saveAsTable(target_table)
 
     tmp_dir = f"dbfs:/tmp/{prefix}_payload_flat_csv_tmp"
     logger.info("Writing CSV to temp path: %s", tmp_dir)
@@ -52,14 +47,12 @@ def export_payload_csv(prefix: str) -> None:
 
     download_url = f"/files/exports/{prefix}_payload_flat.csv"
     logger.info("Download URL for '%s': %s", prefix, download_url)
-    displayHTML(
-        f"""
+    displayHTML(f"""
     <div style="padding:8px;border:1px solid #ddd;border-radius:8px;">
       <b>{prefix.upper()} CSV ready</b><br/>
       <a href="{download_url}" target="_blank" download>Download {prefix}_payload_flat.csv</a>
     </div>
-    """
-    )
+    """)
 
 # COMMAND ----------
 
