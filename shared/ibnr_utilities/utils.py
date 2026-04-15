@@ -185,7 +185,7 @@ def get_run_config(
             }
 
             for training_years, inner_configs in this_config[segmentation_combination].items():
-                table_name = get_gold_table_name(A
+                table_name = get_gold_table_name(
                     segmentation=list(segmentation_combination),
                     training_years=training_years,
                     start_date_str=this_start_str,
