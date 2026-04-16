@@ -61,71 +61,61 @@ class ModelContractImpl(ModelContract):
             except Exception:
                 pass
         gc.collect()
+        package_dir = Path(databricks_mlops_stack.__file__).resolve().parent
+        code_paths = [str(package_dir)]
+
+        # Build a temporary local model first and reuse the exact requirements inferred by MLflow there.
+        # Then remove only the private framework package that serving cannot install from public indexes.
+        default_reqs, inferred = self.get_infer_mlflow_dependencies(code_paths, input_example, model, signature)
+
+        filtered = [r for r in inferred if not str(r).lower().startswith("databricks-mlops-stack")]
+        # Preserve order while removing duplicates.
+        filtered = list(dict.fromkeys(filtered))
+        if not filtered:
+            filtered = default_reqs
+
         mlflow.sklearn.log_model(
             model,
             artifact_path="model",
             registered_model_name=model_name,
             signature=signature,
             input_example=input_example,
+            code_paths=code_paths,
+            pip_requirements=filtered,
         )
 
-    #     gc.collect()
-
-    #     package_dir = Path(databricks_mlops_stack.__file__).resolve().parent
-    #     code_paths = [str(package_dir)]
- 
-    #     # Build a temporary local model first and reuse the exact requirements inferred by MLflow there.
-    #     # Then remove only the private framework package that serving cannot install from public indexes.
-    #     default_reqs, inferred = self.get_infer_mlflow_dependencies(code_paths, input_example, model, signature)
- 
-    #     filtered = [r for r in inferred if not str(r).lower().startswith("databricks-mlops-stack")]
-    #     # Preserve order while removing duplicates.
-    #     filtered = list(dict.fromkeys(filtered))
-    #     if not filtered:
-    #         filtered = default_reqs
- 
-    #     mlflow.sklearn.log_model(
-    #         model,
-    #         artifact_path="model",
-    #         registered_model_name=model_name,
-    #         signature=signature,
-    #         input_example=input_example,
-    #         code_paths=code_paths,
-    #         pip_requirements=filtered,
-    #     )
-        
-    # def get_infer_mlflow_dependencies(self, code_paths: list[str], input_example, model, signature) -> tuple[list[str], list[str]]:
-    #     default_reqs = mlflow.sklearn.get_default_pip_requirements()
-    #     try:
-    #         with TemporaryDirectory(prefix="mlflow-model-reqs-") as tmp_dir:
-    #             local_model_path = str(Path(tmp_dir) / "model")
-    #             mlflow.sklearn.save_model(
-    #                 sk_model=model,
-    #                 path=local_model_path,
-    #                 signature=signature,
-    #                 input_example=input_example,
-    #                 code_paths=code_paths,
-    #             )
-    #             gc.collect()
-    #             inferred: list[str] = []
-    #             req_file = Path(local_model_path) / "requirements.txt"
-    #             if req_file.exists():
-    #                 for line in req_file.read_text(encoding="utf-8").splitlines():
-    #                     dep = line.strip()
-    #                     if not dep or dep.startswith("#"):
-    #                         continue
-    #                     inferred.append(dep)
-    #             if not inferred:
-    #                 inferred = list(
-    #                     mlflow.models.infer_pip_requirements(
-    #                         model_uri=local_model_path,
-    #                         flavor="sklearn",
-    #                         fallback=default_reqs,
-    #                     )
-    #                 )
-    #     except Exception:
-    #         inferred = default_reqs
-    #     return default_reqs, inferred
+    def get_infer_mlflow_dependencies(self, code_paths: list[str], input_example, model, signature) -> tuple[list[str], list[str]]:
+        default_reqs = mlflow.sklearn.get_default_pip_requirements()
+        try:
+            with TemporaryDirectory(prefix="mlflow-model-reqs-") as tmp_dir:
+                local_model_path = str(Path(tmp_dir) / "model")
+                mlflow.sklearn.save_model(
+                    sk_model=model,
+                    path=local_model_path,
+                    signature=signature,
+                    input_example=input_example,
+                    code_paths=code_paths,
+                )
+                gc.collect()
+                inferred: list[str] = []
+                req_file = Path(local_model_path) / "requirements.txt"
+                if req_file.exists():
+                    for line in req_file.read_text(encoding="utf-8").splitlines():
+                        dep = line.strip()
+                        if not dep or dep.startswith("#"):
+                            continue
+                        inferred.append(dep)
+                if not inferred:
+                    inferred = list(
+                        mlflow.models.infer_pip_requirements(
+                            model_uri=local_model_path,
+                            flavor="sklearn",
+                            fallback=default_reqs,
+                        )
+                    )
+        except Exception:
+            inferred = default_reqs
+        return default_reqs, inferred
 
 
 build = ModelContractImpl() 
