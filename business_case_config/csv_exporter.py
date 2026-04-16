@@ -23,6 +23,7 @@ output_mode = "workspace_files"
 # Your Workspace user folder (provided)
 workspace_user_dir = "/Workspace/Users/pablo.garcia.external@axa-uk.co.uk"
 workspace_output_dir = f"{workspace_user_dir}/exports"
+workspace_max_rows_per_file = 1_000_000
 
 # DBFS fallback output directory
 dbfs_output_dir = "dbfs:/tmp/payload_flat_exports"
@@ -54,18 +55,43 @@ def _normalize_csv_value(value):
     return value
 
 
-def _write_workspace_csv_streaming(df_union, destination_file: Path, prefix: str) -> None:
+def _write_workspace_csv_streaming(
+    df_union,
+    destination_dir: Path,
+    prefix: str,
+    max_rows_per_file: int = 1_000_000,
+) -> list[Path]:
     """
-    Write CSV to Workspace Files using Python streaming.
+    Write CSV files to Workspace Files using Python streaming.
 
     This avoids Spark file commit protocol issues on Workspace local FS.
+    It also splits output into multiple files to avoid Workspace file size limits.
     """
-    columns = list(df_union.columns)
-    logger.info("Streaming CSV rows for '%s' to %s", prefix, str(destination_file))
+    if max_rows_per_file <= 0:
+        raise ValueError("max_rows_per_file must be > 0")
 
-    with destination_file.open("w", newline="", encoding="utf-8") as fh:
+    destination_dir.mkdir(parents=True, exist_ok=True)
+    columns = list(df_union.columns)
+    logger.info("Streaming CSV rows for '%s' to %s", prefix, str(destination_dir))
+
+    part_index = 1
+    rows_in_part = 0
+    total_rows = 0
+    output_files: list[Path] = []
+    current_file_path: Path | None = None
+    current_handle = None
+    current_writer = None
+
+    def _open_new_part(file_index: int):
+        file_path = destination_dir / f"{prefix}_payload_flat_part_{file_index:05d}.csv"
+        fh = file_path.open("w", newline="", encoding="utf-8")
         writer = csv.writer(fh)
         writer.writerow(columns)
+        return file_path, fh, writer
+
+    try:
+        current_file_path, current_handle, current_writer = _open_new_part(part_index)
+        output_files.append(current_file_path)
 
         try:
             iterator = df_union.toLocalIterator()
@@ -74,28 +100,75 @@ def _write_workspace_csv_streaming(df_union, destination_file: Path, prefix: str
             iterator = df_union.collect()
 
         for row in iterator:
-            writer.writerow([_normalize_csv_value(row[col]) for col in columns])
+            if rows_in_part >= max_rows_per_file:
+                current_handle.close()
+                part_index += 1
+                rows_in_part = 0
+                current_file_path, current_handle, current_writer = _open_new_part(part_index)
+                output_files.append(current_file_path)
+
+            values = [_normalize_csv_value(row[col]) for col in columns]
+            try:
+                current_writer.writerow(values)
+            except OSError as error:
+                if getattr(error, "errno", None) == 27:
+                    logger.warning(
+                        "File too large for '%s' in %s. Rolling over to next part.",
+                        prefix,
+                        str(current_file_path),
+                    )
+                    current_handle.close()
+                    part_index += 1
+                    rows_in_part = 0
+                    current_file_path, current_handle, current_writer = _open_new_part(part_index)
+                    output_files.append(current_file_path)
+                    current_writer.writerow(values)
+                else:
+                    raise
+
+            rows_in_part += 1
+            total_rows += 1
+    finally:
+        if current_handle is not None and not current_handle.closed:
+            current_handle.close()
+
+    logger.info(
+        "CSV export completed for '%s': %d rows, %d file(s)",
+        prefix,
+        total_rows,
+        len(output_files),
+    )
+    return output_files
 
 
 def _export_to_workspace_files(df_union, prefix: str) -> None:
     """
     Export CSV to Workspace Files under the configured user directory.
     """
-    destination_dir = Path(workspace_output_dir)
-    destination_dir.mkdir(parents=True, exist_ok=True)
-    destination_file = destination_dir / f"{prefix}_payload_flat.csv"
-    _write_workspace_csv_streaming(df_union, destination_file, prefix)
+    destination_dir = Path(workspace_output_dir) / prefix
+    files = _write_workspace_csv_streaming(
+        df_union=df_union,
+        destination_dir=destination_dir,
+        prefix=prefix,
+        max_rows_per_file=workspace_max_rows_per_file,
+    )
 
-    logger.info("CSV saved to Workspace Files: %s", str(destination_file))
+    logger.info("CSV file(s) saved to Workspace Files folder: %s", str(destination_dir))
 
-    download_url = _workspace_download_url(str(destination_file))
-    logger.info("Download URL for '%s': %s", prefix, download_url)
+    links_html = []
+    for file_path in files:
+        download_url = _workspace_download_url(str(file_path))
+        links_html.append(
+            f'<a href="{download_url}" target="_blank" download>{file_path.name}</a>'
+        )
+
+    links_block = "<br/>".join(links_html)
     displayHTML(
         f"""
     <div style="padding:8px;border:1px solid #ddd;border-radius:8px;">
-      <b>{prefix.upper()} CSV ready</b><br/>
-      <a href="{download_url}" target="_blank" download>Download {prefix}_payload_flat.csv</a><br/>
-      <small>Saved at: {destination_file}</small>
+      <b>{prefix.upper()} CSV file(s) ready</b><br/>
+      {links_block}<br/>
+      <small>Folder: {destination_dir}</small>
     </div>
     """
     )
