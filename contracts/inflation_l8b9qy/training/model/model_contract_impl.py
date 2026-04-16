@@ -1037,6 +1037,10 @@ class ModelContractImpl(ModelContract):
         filtered = [r for r in inferred if not str(r).lower().startswith("databricks-mlops-stack")]
         # Preserve order while removing duplicates.
         filtered = list(dict.fromkeys(filtered))
+        minimum_reqs = ["mlflow", "cloudpickle", "scikit-learn", "numpy", "pandas", "scipy", "psutil"]
+        if _IS_TENSORFLOW:
+            minimum_reqs.append("tensorflow")
+        filtered = list(dict.fromkeys([*filtered, *minimum_reqs]))
         if not filtered:
             filtered = default_reqs
 
@@ -1085,4 +1089,3 @@ class ModelContractImpl(ModelContract):
 
 
 build = ModelContractImpl()
-
