@@ -1,5 +1,6 @@
 from typing import Any
 import logging
+import os
 from importlib.metadata import PackageNotFoundError, version
 
 import mlflow
@@ -36,6 +37,16 @@ _FACTORY_FN = {{FACTORY_FN_NAME}}
 # ── Contract implementation ──────────────────────────────────────── #
 
 class ModelContractImpl(ModelContract):
+    @staticmethod
+    def _enable_mlflow_requirements_inference_debug() -> None:
+        """
+        Make MLflow dependency inference fail loudly with a deterministic root cause.
+
+        - MLFLOW_REQUIREMENTS_INFERENCE_RAISE_ERRORS=true avoids silent fallback.
+        - MLFLOW_REQUIREMENTS_INFERENCE_TIMEOUT=600 gives large models more time.
+        """
+        os.environ.setdefault("MLFLOW_REQUIREMENTS_INFERENCE_RAISE_ERRORS", "true")
+        os.environ.setdefault("MLFLOW_REQUIREMENTS_INFERENCE_TIMEOUT", "600")
 
     @staticmethod
     def _merge_requirements(primary: list[str], fallback: list[str]) -> list[str]:
@@ -152,6 +163,12 @@ class ModelContractImpl(ModelContract):
         )
 
     def get_infer_mlflow_dependencies(self, code_paths: list[str], input_example, model, signature) -> tuple[list[str], list[str]]:
+        self._enable_mlflow_requirements_inference_debug()
+        logger.info(
+            "MLflow dependency inference settings: RAISE_ERRORS=%s TIMEOUT=%s",
+            os.environ.get("MLFLOW_REQUIREMENTS_INFERENCE_RAISE_ERRORS"),
+            os.environ.get("MLFLOW_REQUIREMENTS_INFERENCE_TIMEOUT"),
+        )
         default_reqs = mlflow.sklearn.get_default_pip_requirements()
         try:
             with TemporaryDirectory(prefix="mlflow-model-reqs-") as tmp_dir:

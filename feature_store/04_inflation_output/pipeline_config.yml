@@ -1,0 +1,6 @@
+name: inflation_output
+batch_run: true
+script_path: transformations/
+environments:
+- staging
+- prod

@@ -364,6 +364,9 @@ feature_store_path = Path("../feature_store/")
 ibnr_models_name = [x['model_name'] for x in ibnr_info['models_created'] if x['model_name'] in ibnr_models_created]
 ibnr_op_jobs = [f'{x}-op-job' for x in ibnr_models_name]
 ibnr_monitor_jobs = [f'{x}-monitor-job' for x in ibnr_models_name]
+inflation_models_name = [x['model_name'] for x in inflation_info['models_created'].values() if x['model_name'] in inflation_models_created]
+inflation_op_jobs = [f'{x}-op-job' for x in inflation_models_name]
+inflation_monitor_jobs = [f'{x}-monitor-job' for x in inflation_models_name]
 
 shared_pipe_name = 'shared_pipe'
 shared_pipe_folder = '00_' + shared_pipe_name
@@ -434,6 +437,39 @@ inflation_pipe_config = {
 }
 with open(inflation_pipe_location / "pipeline_config.yml", "w", encoding="utf-8") as f:
     yaml.dump(inflation_pipe_config, f, sort_keys=False, default_flow_style=False, indent=2)
+
+inflation_out_name = 'inflation_output'
+inflation_out_folder = '04_' + inflation_out_name
+inflation_out_location = feature_store_path / inflation_out_folder
+inflation_out_config = {
+    'name': inflation_out_name,
+    'batch_run': True,
+    'script_path': "transformations/",
+    'environments': [
+        'staging',
+        'prod'
+    ],
+    'custom_jobs': {
+        'run-job': {
+            'trigger_stages': [
+                shared_pipe_name,
+                ibnr_pipe_name,
+                ibnr_out_name,
+                inflation_pipe_name,
+                inflation_op_jobs,
+            ],
+            'cron_job': "0 0 5 2 * ?",
+            'environments': ['staging', 'prod'],
+        },
+        'out-job': {
+            'trigger_stages': [inflation_monitor_jobs, inflation_out_name],
+            'cron_job': "0 0/30 6-10 2 * ?",
+            'environments': ['staging', 'prod'],
+        },
+    },
+}
+with open(inflation_out_location / "pipeline_config.yml", "w", encoding="utf-8") as f:
+    yaml.dump(inflation_out_config, f, sort_keys=False, default_flow_style=False, indent=2)
 
 # COMMAND ----------
 
